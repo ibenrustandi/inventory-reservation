@@ -33,7 +33,7 @@ Out of scope (**Decision**): authentication, payments, multi-item orders, stock 
 | D-5 | `quantity` is a JSON integer from 1 to 1000. `user_id`, `item_id` and `reservation_id` match `^[A-Za-z0-9_-]{1,64}$`. | §2 (1): "invalid input parameters". |
 | D-6 | A user may hold several reservations at once; there is no per-user limit. | Not addressed in the Brief. |
 | D-7 | `user_id` is trusted as sent; there is no authentication. | Not addressed in the Brief. |
-| D-8 | The reservation lifetime (default 5 minutes) and the sweep interval (default 1 second) are configuration values, so tests do not wait. | §4 (5): "Include unit and stress tests." |
+| D-8 | The reservation lifetime (default 5 minutes), the sweep interval (default 1 second) and the shutdown timeout (default 15 seconds) are configuration values, so tests do not wait. | §4 (5): "Include unit and stress tests." |
 
 ## 4. Reservation lifecycle
 
@@ -106,7 +106,7 @@ Common rules (**Decision**):
   "status": "error",
   "error": {
     "code": "INSUFFICIENT_STOCK",
-    "message": "Only 1 unit available.",
+    "message": "Not enough stock is available.",
     "details": { "available_stock": 1, "requested": 2 }
   },
   "request_id": "req_…"
@@ -116,6 +116,7 @@ Common rules (**Decision**):
 - `code` is stable and machine-readable; `message` is for people; `details` is optional and depends on the code.
 - `400 INVALID_REQUEST` carries `details.fields`, a list of `{ "field", "reason" }`.
 - `500 INTERNAL_ERROR` never exposes internal details.
+- An unknown route returns `404 NOT_FOUND`; a known route called with the wrong method returns `405 METHOD_NOT_ALLOWED`.
 
 ### 7.1 Reserve stock — `POST /api/v1/inventory/reserve`
 
@@ -216,7 +217,7 @@ Known limit: if the sweeper is releasing a due reservation at the same instant, 
 | FE-3 | After a successful reserve, show the reservation ID, item, quantity and a `mm:ss` countdown to `expires_at`. | §3 (3): "Show active reservation details alongside a live 5-minute countdown timer." |
 | FE-4 | A "Confirm Purchase" button that calls the confirm endpoint and shows the confirmed state. | §3 (3): "Provide a "Confirm Purchase" button to execute order confirmation." |
 | FE-5 | Every error code in §7 is rendered as a readable message in the page. When the countdown reaches zero, or the server answers `410`, the reservation is shown as expired and confirm is disabled. The server is the authority on expiry. | §3 (3): "Gracefully handle and render negative backend response states (e.g., failed reservations, expired sessions) directly on the React UI." |
-| FE-6 | **Decision:** the countdown is computed from `expires_at`, not decremented locally; the active reservation survives a page reload; inputs are labelled, errors and countdown are announced to assistive technology, and the layout works at phone width. | Not addressed in the Brief. |
+| FE-6 | **Decision:** the dashboard follows one reservation at a time, and the form is unavailable while that reservation is waiting to be confirmed; the countdown is computed from `expires_at`, not decremented locally; the active reservation survives a page reload; inputs are labelled, errors and countdown are announced to assistive technology, and the layout works at phone width. | Not addressed in the Brief. |
 
 ## 10. Operational requirements
 
