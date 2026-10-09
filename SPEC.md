@@ -185,7 +185,7 @@ Known limit: `reserved_stock` here can include due reservations for up to one sw
 
 ### 7.4 Operational endpoints (**Decision**)
 
-`GET /healthz` returns `200` while the process is running. `GET /readyz` returns `200` only when the database answers.
+`GET /health` returns `200` while the process is running. `GET /ready` returns `200` only when the database answers.
 
 ## 8. Expiry
 
