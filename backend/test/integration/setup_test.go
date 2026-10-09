@@ -27,6 +27,7 @@ import (
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/delivery/http/route"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/infrastructure"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/repository"
+	"github.com/ibenrustandi/inventory-reservation/backend/internal/sweeper"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/usecase"
 )
 
@@ -42,6 +43,9 @@ var (
 	db *pgxpool.Pool
 	// app is the real router on top of the real use cases and repository.
 	app http.Handler
+	// inventoryRepository and inventoryUsecase are the ones app runs on.
+	inventoryRepository repository.InventoryRepository
+	inventoryUsecase    usecase.InventoryUsecase
 )
 
 func TestMain(m *testing.M) {
@@ -89,8 +93,8 @@ func setup() (cleanup func(), err error) {
 		return nil, err
 	}
 
-	inventoryRepository := repository.NewInventoryRepository(db)
-	inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository, reservationTTL)
+	inventoryRepository = repository.NewInventoryRepository(db)
+	inventoryUsecase = usecase.NewInventoryUsecase(inventoryRepository, reservationTTL)
 	engine := infrastructure.NewGin()
 	route.RegisterRoute(engine, handler.NewInventoryHandler(inventoryUsecase), handler.NewHealthHandler(db))
 	app = engine
@@ -207,4 +211,15 @@ func statusOf(t *testing.T, reservationID string) string {
 		t.Fatalf("read status of %s: %v", reservationID, err)
 	}
 	return status
+}
+
+// sweepOnce runs one sweep, as the background sweeper would, and returns
+// how many reservations it released.
+func sweepOnce(t *testing.T) int {
+	t.Helper()
+	released, err := sweeper.New(inventoryUsecase, time.Hour).SweepOnce(context.Background())
+	if err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	return released
 }

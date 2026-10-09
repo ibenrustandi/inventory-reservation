@@ -17,6 +17,9 @@ type Config struct {
 	DatabaseURL string
 	// ReservationTTL is how long a reservation holds stock before it expires.
 	ReservationTTL time.Duration
+	// SweepInterval is how often the background sweeper releases
+	// reservations that are past their deadline.
+	SweepInterval time.Duration
 }
 
 // Load reads the configuration from the environment, applying defaults
@@ -40,7 +43,19 @@ func Load() (Config, error) {
 	if reservationTTL <= 0 {
 		return Config{}, fmt.Errorf("RESERVATION_TTL must be positive, got %s", reservationTTL)
 	}
-	return Config{Port: port, DatabaseURL: databaseURL, ReservationTTL: reservationTTL}, nil
+	sweepInterval, err := durationEnv("SWEEP_INTERVAL", time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	if sweepInterval <= 0 {
+		return Config{}, fmt.Errorf("SWEEP_INTERVAL must be positive, got %s", sweepInterval)
+	}
+	return Config{
+		Port:           port,
+		DatabaseURL:    databaseURL,
+		ReservationTTL: reservationTTL,
+		SweepInterval:  sweepInterval,
+	}, nil
 }
 
 func durationEnv(key string, fallback time.Duration) (time.Duration, error) {

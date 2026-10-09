@@ -24,19 +24,33 @@ type InventoryUsecase interface {
 	// Confirm completes a pending reservation. Confirming one that is
 	// already confirmed succeeds again with the original time.
 	Confirm(ctx context.Context, request *model.ConfirmRequest) (*model.ConfirmResponse, error)
+	// ReleaseExpired returns the stock of every reservation that is past
+	// its deadline to its item, and reports how many it released.
+	ReleaseExpired(ctx context.Context) (int, error)
 }
+
+// DefaultSweepBatchSize keeps each release transaction short, so it never
+// holds item rows for long while buyers are reserving.
+const DefaultSweepBatchSize = 500
 
 // InventoryUsecaseImpl implements InventoryUsecase.
 type InventoryUsecaseImpl struct {
 	InventoryRepository repository.InventoryRepository
 	// ReservationTTL is how long a reservation holds stock.
 	ReservationTTL time.Duration
+	// SweepBatchSize is how many reservations ReleaseExpired releases per
+	// database transaction.
+	SweepBatchSize int
 }
 
 // NewInventoryUsecase returns the inventory use cases backed by the given
 // repository.
 func NewInventoryUsecase(inventoryRepo repository.InventoryRepository, reservationTTL time.Duration) InventoryUsecase {
-	return &InventoryUsecaseImpl{InventoryRepository: inventoryRepo, ReservationTTL: reservationTTL}
+	return &InventoryUsecaseImpl{
+		InventoryRepository: inventoryRepo,
+		ReservationTTL:      reservationTTL,
+		SweepBatchSize:      DefaultSweepBatchSize,
+	}
 }
 
 func (uc *InventoryUsecaseImpl) Stock(ctx context.Context, request *model.GetStockRequest) (*model.StockResponse, error) {
@@ -125,6 +139,22 @@ func (uc *InventoryUsecaseImpl) Confirm(ctx context.Context, request *model.Conf
 		"reservation_id": reservation.ID,
 		"expires_at":     mapper.FormatTime(reservation.ExpiresAt),
 	})
+}
+
+func (uc *InventoryUsecaseImpl) ReleaseExpired(ctx context.Context) (int, error) {
+	total := 0
+	for {
+		released, err := uc.InventoryRepository.SweepDue(ctx, uc.SweepBatchSize)
+		total += released
+		if err != nil {
+			return total, err
+		}
+		// A short batch means the backlog is drained, or another instance
+		// is sweeping.
+		if released < uc.SweepBatchSize {
+			return total, nil
+		}
+	}
 }
 
 func validateReserveRequest(request *model.ReserveRequest) []model.FieldError {

@@ -122,20 +122,8 @@ func TestConfirm_PastDeadlineNotYetReleased(t *testing.T) {
 func TestConfirm_Expired(t *testing.T) {
 	itemID := newItem(t, 10)
 	reservationID := reserve(t, itemID, 2)
-	// Put the reservation in the released state directly; the expiry process
-	// has its own tests.
-	ctx := context.Background()
-	if _, err := db.Exec(ctx, `
-		UPDATE inv_reservation
-		SET reservation_status = 'EXPIRED', reservation_expired_date = now(),
-		    reservation_expires_date = now() - interval '1 second'
-		WHERE reservation_id = $1`, reservationID); err != nil {
-		t.Fatalf("expire reservation: %v", err)
-	}
-	if _, err := db.Exec(ctx,
-		`UPDATE inv_item SET item_stock_reserved = 0 WHERE item_id = $1`, itemID); err != nil {
-		t.Fatalf("release stock: %v", err)
-	}
+	makeDue(t, reservationID)
+	sweepOnce(t)
 
 	rec := confirm(t, reservationID)
 

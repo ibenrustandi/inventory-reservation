@@ -35,6 +35,11 @@ type InventoryRepository interface {
 	// FindReservationByID returns a reservation, or
 	// exception.ErrReservationNotFound.
 	FindReservationByID(ctx context.Context, reservationID string) (*domain.Reservation, error)
+	// SweepDue releases up to limit reservations that are past their
+	// deadline, across all items, oldest first, and returns how many it
+	// released. Only one sweep runs at a time across every instance of the
+	// service; if another one is running, it releases nothing.
+	SweepDue(ctx context.Context, limit int) (int, error)
 }
 
 // InventoryRepositoryImpl is the PostgreSQL implementation.
@@ -177,4 +182,87 @@ func (r *InventoryRepositoryImpl) inTx(ctx context.Context, fn func(tx pgx.Tx) e
 		err = pgx.BeginFunc(ctx, r.DB, fn)
 	}
 	return err
+}
+
+// releaseDueSQL releases reservations that are past their deadline: it marks
+// them EXPIRED and gives their quantity back to the item, in one statement.
+// It is the only place expiry is implemented.
+//
+//	$1 item ID, or NULL for every item
+//	$2 maximum number of reservations, or NULL for no limit
+//
+// SKIP LOCKED lets several callers run at once without ever releasing the
+// same reservation twice. The item update joins on the released rows, so
+// when nothing is due no item row is locked or written.
+const releaseDueSQL = `
+WITH due AS (
+  SELECT reservation_id
+  FROM inv_reservation
+  WHERE ($1::text IS NULL OR item_id = $1)
+    AND reservation_status = 'PENDING'
+    AND reservation_expires_date <= now()
+  ORDER BY reservation_expires_date
+  LIMIT $2::int
+  FOR UPDATE SKIP LOCKED
+), expired AS (
+  UPDATE inv_reservation r
+  SET reservation_status = 'EXPIRED', reservation_expired_date = now()
+  FROM due
+  WHERE r.reservation_id = due.reservation_id
+  RETURNING r.item_id, r.reservation_quantity
+), agg AS (
+  SELECT item_id, SUM(reservation_quantity) AS qty, COUNT(*) AS n
+  FROM expired
+  GROUP BY item_id
+), upd AS (
+  UPDATE inv_item i
+  SET item_stock_reserved = i.item_stock_reserved - agg.qty, updated_at = now()
+  FROM agg
+  WHERE i.item_id = agg.item_id
+)
+SELECT COALESCE(SUM(n), 0)::int FROM agg`
+
+// querier is what releaseDue needs to run its statement: a pool or a
+// transaction.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// releaseDue runs releaseDueSQL and returns the number of reservations
+// released. A nil itemID means every item; a nil limit means no limit.
+func releaseDue(ctx context.Context, q querier, itemID *string, limit *int) (int, error) {
+	var released int
+	if err := q.QueryRow(ctx, releaseDueSQL, itemID, limit).Scan(&released); err != nil {
+		return 0, err
+	}
+	return released, nil
+}
+
+// SweeperLockName names the advisory lock that lets only one sweep run at a
+// time. Two sweeps at once would each lock several item rows in different
+// orders and could deadlock.
+const SweeperLockName = "inv_reservation_sweeper"
+
+func (r *InventoryRepositoryImpl) SweepDue(ctx context.Context, limit int) (int, error) {
+	var released int
+	err := r.inTx(ctx, func(tx pgx.Tx) error {
+		released = 0
+		// The lock is released automatically when the transaction ends.
+		var locked bool
+		if err := tx.QueryRow(ctx,
+			`SELECT pg_try_advisory_xact_lock(hashtext($1))`, SweeperLockName,
+		).Scan(&locked); err != nil {
+			return err
+		}
+		if !locked {
+			return nil
+		}
+		n, err := releaseDue(ctx, tx, nil, &limit)
+		released = n
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("sweep due: %w", err)
+	}
+	return released, nil
 }

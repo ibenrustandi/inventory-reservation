@@ -15,6 +15,7 @@ import (
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/delivery/http/route"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/infrastructure"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/repository"
+	"github.com/ibenrustandi/inventory-reservation/backend/internal/sweeper"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/usecase"
 )
 
@@ -50,6 +51,10 @@ func run() error {
 	inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository, cfg.ReservationTTL)
 	inventoryHandler := handler.NewInventoryHandler(inventoryUsecase)
 	healthHandler := handler.NewHealthHandler(db)
+
+	// Graceful shutdown of the sweeper and the server comes with the
+	// signal handling.
+	go sweeper.New(inventoryUsecase, cfg.SweepInterval).Run(ctx)
 
 	app := infrastructure.NewGin()
 	route.RegisterRoute(app, inventoryHandler, healthHandler)
