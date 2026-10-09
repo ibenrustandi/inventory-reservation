@@ -24,13 +24,13 @@ func NewHealthHandler(db Pinger) *HealthHandler {
 	return &HealthHandler{DB: db}
 }
 
-// Healthz reports that the process is running. It does not touch the database.
-func (h *HealthHandler) Healthz(c *gin.Context) {
+// Health reports that the process is running. It does not touch the database.
+func (h *HealthHandler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, model.StatusResponse{Status: "ok"})
 }
 
-// Readyz reports whether the service can reach the database.
-func (h *HealthHandler) Readyz(c *gin.Context) {
+// Ready reports whether the service can reach the database.
+func (h *HealthHandler) Ready(c *gin.Context) {
 	if err := h.DB.Ping(c.Request.Context()); err != nil {
 		c.JSON(http.StatusServiceUnavailable, model.StatusResponse{Status: "unavailable"})
 		return

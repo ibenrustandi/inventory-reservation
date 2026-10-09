@@ -11,8 +11,8 @@ import (
 	"github.com/ibenrustandi/inventory-reservation/backend/test/unit/mocks"
 )
 
-func TestHealthz(t *testing.T) {
-	rec := do(t, newApp(noUsecase, &mocks.Pinger{}), http.MethodGet, "/healthz")
+func TestHealth(t *testing.T) {
+	rec := do(t, newApp(noUsecase, &mocks.Pinger{}), http.MethodGet, "/health")
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
@@ -22,7 +22,7 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
-func TestReadyz(t *testing.T) {
+func TestReady(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -33,7 +33,7 @@ func TestReadyz(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := do(t, newApp(noUsecase, &mocks.Pinger{Err: tt.err}), http.MethodGet, "/readyz")
+			rec := do(t, newApp(noUsecase, &mocks.Pinger{Err: tt.err}), http.MethodGet, "/ready")
 			if rec.Code != tt.want {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.want)
 			}
@@ -78,7 +78,7 @@ func TestRequestID_ReusesValidClientID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+			req := httptest.NewRequest(http.MethodGet, "/health", nil)
 			if tt.sent != "" {
 				req.Header.Set(middleware.RequestIDHeader, tt.sent)
 			}

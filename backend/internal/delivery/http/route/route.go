@@ -29,8 +29,8 @@ func RegisterRoute(app *gin.Engine, inventoryHandler *handler.InventoryHandler, 
 	app.NoRoute(func(c *gin.Context) { _ = c.Error(exception.ErrRouteNotFound) })
 	app.NoMethod(func(c *gin.Context) { _ = c.Error(exception.ErrMethodNotAllowed) })
 
-	app.GET("/healthz", healthHandler.Healthz)
-	app.GET("/readyz", healthHandler.Readyz)
+	app.GET("/health", healthHandler.Health)
+	app.GET("/ready", healthHandler.Ready)
 
 	inventoryRouter := app.Group("/api/v1/inventory")
 	inventoryRouter.GET("/stock", inventoryHandler.Stock)
