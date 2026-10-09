@@ -1,5 +1,6 @@
 # Local development stack. Credentials here are defaults for local use only.
 # Start everything with: docker compose up --build
+# Then open http://localhost:5173 (dashboard); the API is on http://localhost:8080.
 
 services:
   postgres:
@@ -39,6 +40,19 @@ services:
       retries: 10
     # The server handles SIGTERM itself; give it time to finish in-flight work.
     stop_grace_period: 20s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   postgres-data:
