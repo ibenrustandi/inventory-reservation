@@ -16,6 +16,7 @@ import (
 var statusByCode = map[string]int{
 	exception.ErrInvalidRequest.Code:      http.StatusBadRequest,
 	exception.ErrItemNotFound.Code:        http.StatusNotFound,
+	exception.ErrInsufficientStock.Code:   http.StatusConflict,
 	exception.ErrRouteNotFound.Code:       http.StatusNotFound,
 	exception.ErrMethodNotAllowed.Code:    http.StatusMethodNotAllowed,
 	exception.ErrInternalServerError.Code: http.StatusInternalServerError,

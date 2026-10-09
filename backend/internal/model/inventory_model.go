@@ -12,3 +12,21 @@ type StockResponse struct {
 	ReservedStock  int    `json:"reserved_stock"`
 	AvailableStock int    `json:"available_stock"`
 }
+
+// ReserveRequest asks to hold a quantity of an item for a user. Quantity is
+// a pointer so a missing field can be told apart from zero.
+type ReserveRequest struct {
+	UserID   string `json:"user_id"`
+	ItemID   string `json:"item_id"`
+	Quantity *int   `json:"quantity"`
+}
+
+// ReserveResponse describes a reservation that was made.
+type ReserveResponse struct {
+	Status        string `json:"status"`
+	ReservationID string `json:"reservation_id"`
+	ItemID        string `json:"item_id"`
+	Quantity      int    `json:"quantity"`
+	// ExpiresAt is RFC 3339 in UTC.
+	ExpiresAt string `json:"expires_at"`
+}

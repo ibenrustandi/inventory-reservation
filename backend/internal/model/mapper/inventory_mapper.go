@@ -2,6 +2,8 @@
 package mapper
 
 import (
+	"time"
+
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/domain"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/model"
 )
@@ -14,4 +16,22 @@ func ToStockResponse(stock *domain.Stock) *model.StockResponse {
 		ReservedStock:  stock.Reserved,
 		AvailableStock: stock.Available(),
 	}
+}
+
+// ToReserveResponse converts a reservation into its API response.
+func ToReserveResponse(reservation *domain.Reservation) *model.ReserveResponse {
+	return &model.ReserveResponse{
+		Status:        "success",
+		ReservationID: reservation.ID,
+		ItemID:        reservation.ItemID,
+		Quantity:      reservation.Quantity,
+		ExpiresAt:     formatTime(reservation.ExpiresAt),
+	}
+}
+
+// formatTime renders a timestamp as RFC 3339 in UTC with second precision.
+// Fractions are dropped, never rounded up, so a client never believes a
+// deadline is later than it is.
+func formatTime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
 }

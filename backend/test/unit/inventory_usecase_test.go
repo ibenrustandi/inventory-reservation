@@ -21,7 +21,7 @@ func TestStockUsecase(t *testing.T) {
 				return &domain.Stock{ItemID: itemID, Total: 100, Reserved: 15}, nil
 			},
 		}
-		inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository)
+		inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository, reservationTTL)
 
 		response, err := inventoryUsecase.Stock(ctx, &model.GetStockRequest{ItemID: "item_4021"})
 
@@ -40,7 +40,7 @@ func TestStockUsecase(t *testing.T) {
 				return nil, exception.ErrItemNotFound
 			},
 		}
-		inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository)
+		inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository, reservationTTL)
 
 		_, err := inventoryUsecase.Stock(ctx, &model.GetStockRequest{ItemID: "item_9999"})
 
@@ -64,7 +64,7 @@ func TestStockUsecase(t *testing.T) {
 				return nil, repoErr
 			},
 		}
-		inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository)
+		inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository, reservationTTL)
 
 		_, err := inventoryUsecase.Stock(ctx, &model.GetStockRequest{ItemID: "item_4021"})
 

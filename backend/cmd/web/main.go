@@ -47,7 +47,7 @@ func run() error {
 	slog.Info("database migrated")
 
 	inventoryRepository := repository.NewInventoryRepository(db)
-	inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository)
+	inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository, cfg.ReservationTTL)
 	inventoryHandler := handler.NewInventoryHandler(inventoryUsecase)
 	healthHandler := handler.NewHealthHandler(db)
 

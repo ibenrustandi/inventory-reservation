@@ -9,11 +9,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +30,11 @@ import (
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/usecase"
 )
 
-const postgresImage = "postgres:17-alpine"
+const (
+	postgresImage = "postgres:17-alpine"
+	// reservationTTL is the reservation lifetime the app under test uses.
+	reservationTTL = 5 * time.Minute
+)
 
 var (
 	// db is the migrated database shared by every test in this package.
@@ -84,7 +90,7 @@ func setup() (cleanup func(), err error) {
 	}
 
 	inventoryRepository := repository.NewInventoryRepository(db)
-	inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository)
+	inventoryUsecase := usecase.NewInventoryUsecase(inventoryRepository, reservationTTL)
 	engine := infrastructure.NewGin()
 	route.RegisterRoute(engine, handler.NewInventoryHandler(inventoryUsecase), handler.NewHealthHandler(db))
 	app = engine
@@ -117,4 +123,47 @@ func get(t *testing.T, target string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
 	return rec
+}
+
+// post sends a POST request with the given JSON body to the app.
+func post(t *testing.T, target, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, target, strings.NewReader(body)))
+	return rec
+}
+
+// stockOf reads an item's stock counters straight from the database.
+func stockOf(t *testing.T, itemID string) (total, reserved int) {
+	t.Helper()
+	if err := db.QueryRow(context.Background(),
+		`SELECT item_stock, item_stock_reserved FROM inv_item WHERE item_id = $1`, itemID,
+	).Scan(&total, &reserved); err != nil {
+		t.Fatalf("read stock of %s: %v", itemID, err)
+	}
+	return total, reserved
+}
+
+// errorBody is the error envelope as the tests read it.
+type errorBody struct {
+	Status string `json:"status"`
+	Error  struct {
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+	} `json:"error"`
+	RequestID string `json:"request_id"`
+}
+
+// decodeError parses the error envelope and fails the test if the body is
+// not one.
+func decodeError(t *testing.T, rec *httptest.ResponseRecorder) errorBody {
+	t.Helper()
+	var body errorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error envelope: %v; body = %s", err, rec.Body)
+	}
+	if body.Status != "error" || body.RequestID == "" {
+		t.Fatalf("body = %s, want an error envelope with a request_id", rec.Body)
+	}
+	return body
 }

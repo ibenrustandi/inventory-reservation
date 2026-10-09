@@ -34,7 +34,8 @@ func (e *Error) WithDetails(details any) *Error {
 // Define errors here.
 var (
 	// inventory domain
-	ErrItemNotFound = &Error{Code: "ITEM_NOT_FOUND", Message: "The item does not exist."}
+	ErrItemNotFound      = &Error{Code: "ITEM_NOT_FOUND", Message: "The item does not exist."}
+	ErrInsufficientStock = &Error{Code: "INSUFFICIENT_STOCK", Message: "Not enough stock is available."}
 
 	// request
 	ErrInvalidRequest   = &Error{Code: "INVALID_REQUEST", Message: "The request is invalid."}

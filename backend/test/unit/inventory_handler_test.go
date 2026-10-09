@@ -26,7 +26,7 @@ func TestStock_InvalidRequest(t *testing.T) {
 			return nil, errors.New("unreachable")
 		},
 	}
-	app := newApp(usecase.NewInventoryUsecase(inventoryRepository), &mocks.Pinger{})
+	app := newApp(usecase.NewInventoryUsecase(inventoryRepository, reservationTTL), &mocks.Pinger{})
 
 	tests := []struct {
 		name   string
