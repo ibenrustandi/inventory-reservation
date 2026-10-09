@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/config"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/httpapi"
+	"github.com/ibenrustandi/inventory-reservation/backend/internal/postgres"
 )
 
 func main() {
@@ -28,6 +30,19 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+
+	ctx := context.Background()
+
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("connect database: %w", err)
+	}
+	defer pool.Close()
+
+	if err := postgres.Migrate(ctx, pool); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
+	}
+	slog.Info("database migrated")
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),

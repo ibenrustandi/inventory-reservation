@@ -2,6 +2,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 type Config struct {
 	// Port is the TCP port the HTTP server listens on.
 	Port int
+	// DatabaseURL is the PostgreSQL connection string.
+	DatabaseURL string
 }
 
 // Load reads the configuration from the environment, applying defaults
@@ -23,7 +26,11 @@ func Load() (Config, error) {
 	if port < 1 || port > 65535 {
 		return Config{}, fmt.Errorf("PORT must be between 1 and 65535, got %d", port)
 	}
-	return Config{Port: port}, nil
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return Config{}, errors.New("DATABASE_URL is required")
+	}
+	return Config{Port: port, DatabaseURL: databaseURL}, nil
 }
 
 func intEnv(key string, fallback int) (int, error) {
