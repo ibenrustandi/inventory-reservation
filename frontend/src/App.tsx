@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import type { Reservation } from './api/types'
+import { ReservationCard } from './components/ReservationCard'
 import { ReserveForm } from './components/ReserveForm'
 import { StockPanel } from './components/StockPanel'
 import { ITEM_ID } from './config'
+import { useTrackedReservation } from './hooks/useTrackedReservation'
 
 function App() {
-  const [reservation, setReservation] = useState<Reservation | null>(null)
+  const { tracked, start, markConfirmed, markExpired, clear } = useTrackedReservation()
+  const holding = tracked?.outcome === 'pending'
 
   return (
     <main className="page">
@@ -16,18 +17,30 @@ function App() {
 
       <div className="layout">
         <StockPanel itemId={ITEM_ID} />
-        <ReserveForm itemId={ITEM_ID} onReserved={setReservation} />
+        {/* One reservation at a time: while one is waiting to be confirmed,
+            the form steps aside so it cannot be lost track of. */}
+        {holding ? (
+          <section className="card" aria-labelledby="reserve-heading">
+            <h2 id="reserve-heading">Reserve stock</h2>
+            <p className="muted">
+              You have a reservation waiting. Confirm it below, or let it expire, before making
+              another.
+            </p>
+          </section>
+        ) : (
+          <ReserveForm itemId={ITEM_ID} onReserved={start} />
+        )}
       </div>
 
-      {reservation && (
-        <section className="card" aria-labelledby="reservation-heading">
-          <h2 id="reservation-heading">Reservation created</h2>
-          <p className="notice notice-success" role="status">
-            Reserved {reservation.quantity} of <code>{reservation.item_id}</code> as{' '}
-            <code>{reservation.reservation_id}</code>. It expires at{' '}
-            {new Date(reservation.expires_at).toLocaleTimeString()}.
-          </p>
-        </section>
+      {tracked && (
+        <ReservationCard
+          // A new reservation gets a fresh card, with no leftover state.
+          key={tracked.reservation.reservation_id}
+          tracked={tracked}
+          onConfirmed={markConfirmed}
+          onExpired={markExpired}
+          onStartOver={clear}
+        />
       )}
     </main>
   )
