@@ -76,7 +76,7 @@ Mapping to the API: `item_stock` → `total_stock`, `item_stock_reserved` → `r
 
 Naming rules (**Decision**): tables are prefixed `inv_` and singular; a table's own columns are prefixed with the table name without `inv_`; reference columns (`item_id`, `user_id`) keep the name of what they refer to; `updated_at` is unprefixed.
 
-`item_stock` alone is never the availability check. Available is always `item_stock - item_stock_reserved`.
+`item_stock` alone is never the availability check; see `available_stock` in §2.
 
 ## 6. Invariants
 
@@ -126,7 +126,7 @@ Request: `{ "user_id": "usr_9981", "item_id": "item_4021", "quantity": 2 }`
 Behaviour:
 1. Validate the body (D-5).
 2. In one atomic database operation: if `available_stock ≥ quantity`, increase `reserved_stock` by `quantity` and create a `PENDING` reservation with `expires_at = database now + 5 minutes`.
-3. If stock was insufficient, release that item's due reservations and try step 2 once more (§8, layer 2).
+3. If stock was insufficient, apply §8 layer 2 before answering.
 4. Reservation IDs are `res_` followed by a random suffix and are not guessable from one another.
 
 Success — `201 Created` (**Decision**: the Brief gives the body, not the status):
@@ -141,7 +141,7 @@ Success — `201 Created` (**Decision**: the Brief gives the body, not the statu
 |---|---|---|
 | Malformed JSON; missing field; wrong type; `quantity` not an integer in 1..1000; ID fails the pattern | 400 | `INVALID_REQUEST` |
 | `item_id` does not exist | 404 | `ITEM_NOT_FOUND` |
-| `available_stock < quantity` after releasing due holds | 409 | `INSUFFICIENT_STOCK` (`details.available_stock`, `details.requested`) |
+| `available_stock < quantity` after §8 layer 2 | 409 | `INSUFFICIENT_STOCK` (`details.available_stock`, `details.requested`) |
 
 ### 7.2 Confirm reservation — `POST /api/v1/inventory/confirm`
 
@@ -193,7 +193,7 @@ Known limit: `reserved_stock` here can include due reservations for up to one sw
 >
 > Brief §4 (3): "Expired reservations must be automatically returned to available stock upon expiration."
 
-A reservation is expired the instant database time reaches `expires_at` (D-2). This is enforced in three layers:
+The moment of expiry is defined by D-2. It is enforced in three layers:
 
 1. **Confirm checks the deadline itself.** A confirm on a reservation past its deadline is rejected with `410 RESERVATION_EXPIRED`, whether or not its stock has been released yet.
 2. **Reserve releases due holds inline before saying sold out.** When a reserve finds too little available stock, the service releases that item's due reservations and tries the reserve once more. Only if that also fails does it return `409 INSUFFICIENT_STOCK`. It retries once and never loops. A successful first attempt costs no extra query.
@@ -222,14 +222,22 @@ Known limit: if the sweeper is releasing a due reservation at the same instant, 
 
 | ID | Requirement | Brief statement |
 |---|---|---|
-| OP-1 | `docker compose up` starts PostgreSQL, applies the schema and seed, and starts the backend and the frontend, with no manual steps. | §4 (1): "provide a working docker-compose.yaml file that spins up the PostgreSQL container alongside the backend (and optionally the frontend) so the entire system can be run with a single command". |
+| OP-1 | `docker compose up` starts PostgreSQL, applies the schema and seed, and starts the backend, with no manual steps. Serving the frontend from the same command is optional, as in the Brief. | §4 (1): "provide a working docker-compose.yaml file that spins up the PostgreSQL container alongside the backend (and optionally the frontend) so the entire system can be run with a single command". |
 | OP-2 | PostgreSQL is the only data store, in the application and in the tests that exercise storage. | §2: "in-memory databases, SQLite, or mock data stores are strictly disallowed". |
 | OP-3 | On `SIGINT` or `SIGTERM` the server stops accepting requests, lets in-flight requests finish within 15 seconds, stops the sweeper after its current pass, then closes the database pool last. | §4 (4): "The Gin server must cleanly intercept system signals and shut down gracefully without corrupting state or dropping active database connections." |
 | OP-4 | `go test -race -v ./...` passes with no skipped tests on a machine that has Go and Docker. | §4 (5): "Include unit and stress tests. The Go codebase will be validated using standard race detection: go test -race -v ./..." |
 
-## 11. Acceptance criteria
+## 11. Written deliverables
 
-Each criterion names the test that proves it.
+| ID | Requirement | Brief statement |
+|---|---|---|
+| DOC-1 | `ARCHITECTURE.md`, at most two pages, answering the three prompts: design and locking strategy, horizontal scaling and failure modes, trade-offs and AI transparency. | §5: "Address the following three prompts in an ARCHITECTURE.md file (1–2 pages max)". |
+| DOC-2 | `README.md` with the steps to run the database, the backend and the frontend, and to run the tests. | §6: "Include a README.md detailing how to run PostgreSQL via docker compose up, start the Gin backend, and run the React + Vite frontend." |
+| DOC-3 | The repository history shows incremental commits for both the Go backend and the React frontend. | §6: "Commit incrementally across both React frontend and Go backend development phases." |
+
+## 12. Acceptance criteria
+
+Each criterion names the automated test that proves it. The frontend requirements FE-1…FE-6 are verified by a manual walkthrough of the dashboard.
 
 ### Reserve
 
@@ -283,7 +291,7 @@ Each criterion names the test that proves it.
 
 | ID | Given / When / Then | Test |
 |---|---|---|
-| AC-OP-01 | Given a request in flight, when the process receives `SIGTERM`, then the request completes, the sweeper stops, and the pool closes last. | `TestShutdown_Graceful` |
+| AC-OP-01 | Given a request in flight, when shutdown is triggered, then the request completes with its normal response, the sweeper stops, and the server exits without error. | `TestShutdown_Graceful` |
 | AC-OP-02 | Given a cancelled context, when the sweeper loop is running, then it returns promptly. | `TestSweeperRun_StopsOnCancel` |
 
 Tests never use a fixed sleep. A reservation is made due by moving its `reservation_expires_at` into the past in SQL.
