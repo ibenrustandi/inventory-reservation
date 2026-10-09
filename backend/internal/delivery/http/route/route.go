@@ -35,4 +35,5 @@ func RegisterRoute(app *gin.Engine, inventoryHandler *handler.InventoryHandler, 
 	inventoryRouter := app.Group("/api/v1/inventory")
 	inventoryRouter.GET("/stock", inventoryHandler.Stock)
 	inventoryRouter.POST("/reserve", inventoryHandler.Reserve)
+	inventoryRouter.POST("/confirm", inventoryHandler.Confirm)
 }

@@ -56,6 +56,23 @@ func (h *InventoryHandler) Reserve(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
+// Confirm handles POST /api/v1/inventory/confirm
+func (h *InventoryHandler) Confirm(c *gin.Context) {
+	request := new(model.ConfirmRequest)
+	if err := decodeJSON(c, request); err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	response, err := h.InventoryUsecase.Confirm(c.Request.Context(), request)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 // maxBodyBytes is far above any valid request and stops a client from
 // sending an unbounded body.
 const maxBodyBytes = 64 << 10

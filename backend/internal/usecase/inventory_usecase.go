@@ -21,6 +21,9 @@ type InventoryUsecase interface {
 	// Reserve holds stock for a user until the reservation is confirmed or
 	// expires.
 	Reserve(ctx context.Context, request *model.ReserveRequest) (*model.ReserveResponse, error)
+	// Confirm completes a pending reservation. Confirming one that is
+	// already confirmed succeeds again with the original time.
+	Confirm(ctx context.Context, request *model.ConfirmRequest) (*model.ConfirmResponse, error)
 }
 
 // InventoryUsecaseImpl implements InventoryUsecase.
@@ -88,6 +91,39 @@ func (uc *InventoryUsecaseImpl) explainNotReserved(ctx context.Context, reservat
 	return exception.ErrInsufficientStock.WithDetails(map[string]any{
 		"available_stock": stock.Available(),
 		"requested":       reservation.Quantity,
+	})
+}
+
+func (uc *InventoryUsecaseImpl) Confirm(ctx context.Context, request *model.ConfirmRequest) (*model.ConfirmResponse, error) {
+	if fieldErr := validateID("reservation_id", request.ReservationID); fieldErr != nil {
+		return nil, exception.NewInvalidRequest(*fieldErr)
+	}
+
+	reservation, confirmed, err := uc.InventoryRepository.Confirm(ctx, request.ReservationID)
+	if err != nil {
+		return nil, err
+	}
+	if confirmed {
+		return mapper.ToConfirmResponse(reservation), nil
+	}
+
+	// Nothing was confirmed: find out why.
+	reservation, err = uc.InventoryRepository.FindReservationByID(ctx, request.ReservationID)
+	if errors.Is(err, exception.ErrReservationNotFound) {
+		return nil, exception.ErrReservationNotFound.WithDetails(map[string]any{"reservation_id": request.ReservationID})
+	}
+	if err != nil {
+		return nil, err
+	}
+	if reservation.Status == domain.ReservationConfirmed && reservation.ConfirmedAt != nil {
+		// A repeated confirm is a safe retry: answer as the first one did.
+		return mapper.ToConfirmResponse(reservation), nil
+	}
+	// A reservation only moves forward. Since it could not be confirmed and
+	// is not confirmed, it is past its deadline, released or not.
+	return nil, exception.ErrReservationExpired.WithDetails(map[string]any{
+		"reservation_id": reservation.ID,
+		"expires_at":     mapper.FormatTime(reservation.ExpiresAt),
 	})
 }
 

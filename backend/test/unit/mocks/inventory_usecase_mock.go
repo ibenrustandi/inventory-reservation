@@ -10,6 +10,7 @@ import (
 type InventoryUsecase struct {
 	StockFunc   func(ctx context.Context, request *model.GetStockRequest) (*model.StockResponse, error)
 	ReserveFunc func(ctx context.Context, request *model.ReserveRequest) (*model.ReserveResponse, error)
+	ConfirmFunc func(ctx context.Context, request *model.ConfirmRequest) (*model.ConfirmResponse, error)
 }
 
 func (m *InventoryUsecase) Stock(ctx context.Context, request *model.GetStockRequest) (*model.StockResponse, error) {
@@ -18,4 +19,8 @@ func (m *InventoryUsecase) Stock(ctx context.Context, request *model.GetStockReq
 
 func (m *InventoryUsecase) Reserve(ctx context.Context, request *model.ReserveRequest) (*model.ReserveResponse, error) {
 	return m.ReserveFunc(ctx, request)
+}
+
+func (m *InventoryUsecase) Confirm(ctx context.Context, request *model.ConfirmRequest) (*model.ConfirmResponse, error) {
+	return m.ConfirmFunc(ctx, request)
 }

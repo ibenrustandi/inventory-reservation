@@ -167,3 +167,44 @@ func decodeError(t *testing.T, rec *httptest.ResponseRecorder) errorBody {
 	}
 	return body
 }
+
+// reserve makes a reservation through the API and returns its ID.
+func reserve(t *testing.T, itemID string, quantity int) string {
+	t.Helper()
+	rec := post(t, "/api/v1/inventory/reserve",
+		fmt.Sprintf(`{"user_id":"usr_test","item_id":%q,"quantity":%d}`, itemID, quantity))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("reserve: status = %d, want %d; body = %s", rec.Code, http.StatusCreated, rec.Body)
+	}
+	var body struct {
+		ReservationID string `json:"reservation_id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode reserve response: %v", err)
+	}
+	return body.ReservationID
+}
+
+// makeDue moves a reservation's deadline into the past, so it is due
+// without the test having to wait.
+func makeDue(t *testing.T, reservationID string) {
+	t.Helper()
+	tag, err := db.Exec(context.Background(), `
+		UPDATE inv_reservation SET reservation_expires_date = now() - interval '1 second'
+		WHERE reservation_id = $1`, reservationID)
+	if err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("make reservation %s due: rows = %d, err = %v", reservationID, tag.RowsAffected(), err)
+	}
+}
+
+// statusOf reads a reservation's status straight from the database.
+func statusOf(t *testing.T, reservationID string) string {
+	t.Helper()
+	var status string
+	if err := db.QueryRow(context.Background(),
+		`SELECT reservation_status FROM inv_reservation WHERE reservation_id = $1`, reservationID,
+	).Scan(&status); err != nil {
+		t.Fatalf("read status of %s: %v", reservationID, err)
+	}
+	return status
+}

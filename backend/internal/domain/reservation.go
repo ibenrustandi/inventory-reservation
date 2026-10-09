@@ -31,6 +31,8 @@ type Reservation struct {
 	Quantity  int
 	Status    ReservationStatus
 	ExpiresAt time.Time
+	// ConfirmedAt is set only once the reservation is CONFIRMED.
+	ConfirmedAt *time.Time
 }
 
 // NewReservationID returns a new random reservation ID. IDs cannot be

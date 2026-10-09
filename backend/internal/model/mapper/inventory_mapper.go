@@ -25,13 +25,22 @@ func ToReserveResponse(reservation *domain.Reservation) *model.ReserveResponse {
 		ReservationID: reservation.ID,
 		ItemID:        reservation.ItemID,
 		Quantity:      reservation.Quantity,
-		ExpiresAt:     formatTime(reservation.ExpiresAt),
+		ExpiresAt:     FormatTime(reservation.ExpiresAt),
 	}
 }
 
-// formatTime renders a timestamp as RFC 3339 in UTC with second precision.
+// ToConfirmResponse converts a confirmed reservation into its API response.
+func ToConfirmResponse(reservation *domain.Reservation) *model.ConfirmResponse {
+	return &model.ConfirmResponse{
+		Status:        "success",
+		ReservationID: reservation.ID,
+		ConfirmedAt:   FormatTime(*reservation.ConfirmedAt),
+	}
+}
+
+// FormatTime renders a timestamp as RFC 3339 in UTC with second precision.
 // Fractions are dropped, never rounded up, so a client never believes a
 // deadline is later than it is.
-func formatTime(t time.Time) string {
+func FormatTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }

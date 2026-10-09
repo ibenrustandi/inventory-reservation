@@ -37,6 +37,10 @@ var (
 	ErrItemNotFound      = &Error{Code: "ITEM_NOT_FOUND", Message: "The item does not exist."}
 	ErrInsufficientStock = &Error{Code: "INSUFFICIENT_STOCK", Message: "Not enough stock is available."}
 
+	// reservation domain
+	ErrReservationNotFound = &Error{Code: "RESERVATION_NOT_FOUND", Message: "The reservation does not exist."}
+	ErrReservationExpired  = &Error{Code: "RESERVATION_EXPIRED", Message: "The reservation has expired."}
+
 	// request
 	ErrInvalidRequest   = &Error{Code: "INVALID_REQUEST", Message: "The request is invalid."}
 	ErrRouteNotFound    = &Error{Code: "NOT_FOUND", Message: "The route does not exist."}

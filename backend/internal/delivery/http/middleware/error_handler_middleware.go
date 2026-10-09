@@ -17,6 +17,8 @@ var statusByCode = map[string]int{
 	exception.ErrInvalidRequest.Code:      http.StatusBadRequest,
 	exception.ErrItemNotFound.Code:        http.StatusNotFound,
 	exception.ErrInsufficientStock.Code:   http.StatusConflict,
+	exception.ErrReservationNotFound.Code: http.StatusNotFound,
+	exception.ErrReservationExpired.Code:  http.StatusGone,
 	exception.ErrRouteNotFound.Code:       http.StatusNotFound,
 	exception.ErrMethodNotAllowed.Code:    http.StatusMethodNotAllowed,
 	exception.ErrInternalServerError.Code: http.StatusInternalServerError,

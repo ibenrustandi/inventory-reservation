@@ -30,3 +30,16 @@ type ReserveResponse struct {
 	// ExpiresAt is RFC 3339 in UTC.
 	ExpiresAt string `json:"expires_at"`
 }
+
+// ConfirmRequest asks to turn a pending reservation into a purchase.
+type ConfirmRequest struct {
+	ReservationID string `json:"reservation_id"`
+}
+
+// ConfirmResponse describes a confirmed reservation.
+type ConfirmResponse struct {
+	Status        string `json:"status"`
+	ReservationID string `json:"reservation_id"`
+	// ConfirmedAt is RFC 3339 in UTC.
+	ConfirmedAt string `json:"confirmed_at"`
+}
