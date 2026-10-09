@@ -63,16 +63,16 @@ CREATE TABLE inv_reservation (
   item_id                  TEXT NOT NULL REFERENCES inv_item(item_id),
   reservation_quantity     INT  NOT NULL CHECK (reservation_quantity > 0),
   reservation_status       TEXT NOT NULL CHECK (reservation_status IN ('PENDING','CONFIRMED','EXPIRED')),
-  reservation_created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  reservation_expires_at   TIMESTAMPTZ NOT NULL,
-  reservation_confirmed_at TIMESTAMPTZ,
-  reservation_expired_at   TIMESTAMPTZ
+  reservation_date           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reservation_expires_date   TIMESTAMPTZ NOT NULL,
+  reservation_confirmed_date TIMESTAMPTZ,
+  reservation_expired_date   TIMESTAMPTZ
 );
 CREATE INDEX inv_reservation_pending_expiry_idx
-  ON inv_reservation (reservation_expires_at) WHERE reservation_status = 'PENDING';
+  ON inv_reservation (reservation_expires_date) WHERE reservation_status = 'PENDING';
 ```
 
-Mapping to the API: `item_stock` → `total_stock`, `item_stock_reserved` → `reserved_stock`.
+Mapping to the API: `item_stock` → `total_stock`, `item_stock_reserved` → `reserved_stock`, `reservation_expires_date` → `expires_at`, `reservation_confirmed_date` → `confirmed_at`. The `_date` columns hold a full timestamp with time zone, not a calendar date.
 
 Naming rules (**Decision**): tables are prefixed `inv_` and singular; a table's own columns are prefixed with the table name without `inv_`; reference columns (`item_id`, `user_id`) keep the name of what they refer to; `updated_at` is unprefixed.
 
@@ -199,7 +199,7 @@ The moment of expiry is defined by D-2. It is enforced in three layers:
 2. **Reserve releases due holds inline before saying sold out.** When a reserve finds too little available stock, the service releases that item's due reservations and tries the reserve once more. Only if that also fails does it return `409 INSUFFICIENT_STOCK`. It retries once and never loops. A successful first attempt costs no extra query.
 3. **A background sweeper releases everything else** on a fixed interval, including holds on items nobody is currently buying.
 
-Releasing a reservation means, atomically: set it to `EXPIRED` with `expired_at`, and decrease the item's `reserved_stock` by its quantity.
+Releasing a reservation means, atomically: set it to `EXPIRED`, record the time in `reservation_expired_date`, and decrease the item's `reserved_stock` by its quantity.
 
 The sweep interval must not be visible to buyers: a buyer does not receive `INSUFFICIENT_STOCK` because of holds that are past their deadline but not yet swept.
 
@@ -294,4 +294,4 @@ Each criterion names the automated test that proves it. The frontend requirement
 | AC-OP-01 | Given a request in flight, when shutdown is triggered, then the request completes with its normal response, the sweeper stops, and the server exits without error. | `TestShutdown_Graceful` |
 | AC-OP-02 | Given a cancelled context, when the sweeper loop is running, then it returns promptly. | `TestSweeperRun_StopsOnCancel` |
 
-Tests never use a fixed sleep. A reservation is made due by moving its `reservation_expires_at` into the past in SQL.
+Tests never use a fixed sleep. A reservation is made due by moving its `reservation_expires_date` into the past in SQL.
