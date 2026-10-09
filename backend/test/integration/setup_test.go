@@ -41,6 +41,8 @@ var (
 	// db is the migrated database shared by every test in this package.
 	// Tests create their own rows to stay independent.
 	db *pgxpool.Pool
+	// databaseURL is the connection string of that database.
+	databaseURL string
 	// app is the real router on top of the real use cases and repository.
 	app http.Handler
 	// inventoryRepository and inventoryUsecase are the ones app runs on.
@@ -82,6 +84,7 @@ func setup() (cleanup func(), err error) {
 		}
 	}
 
+	databaseURL = url
 	db, err = infrastructure.NewPostgres(ctx, url)
 	if err != nil {
 		stopContainer()

@@ -31,8 +31,14 @@ func (s *Sweeper) SweepOnce(ctx context.Context) (int, error) {
 	return s.releaser.ReleaseExpired(ctx)
 }
 
-// Run sweeps every interval until ctx is cancelled, then returns. A failed
-// sweep is logged and the next one runs as usual.
+// sweepTimeout bounds one sweep, so a stuck database cannot stop the
+// service from shutting down.
+const sweepTimeout = 10 * time.Second
+
+// Run sweeps every interval until ctx is cancelled, then returns. A sweep
+// that is running when ctx is cancelled finishes first, so shutting down
+// never abandons a release half way. A failed sweep is logged and the next
+// one runs as usual.
 func (s *Sweeper) Run(ctx context.Context) {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
@@ -42,11 +48,16 @@ func (s *Sweeper) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			released, err := s.SweepOnce(ctx)
-			switch {
-			case ctx.Err() != nil:
-				// Shutting down: an interrupted sweep is not an error.
+			// When both ctx and the ticker are ready, select picks either.
+			// Never start a sweep once ctx is cancelled.
+			if ctx.Err() != nil {
 				return
+			}
+			// The sweep gets a context that outlives a cancelled ctx.
+			sweepCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sweepTimeout)
+			released, err := s.SweepOnce(sweepCtx)
+			cancel()
+			switch {
 			case err != nil:
 				slog.ErrorContext(ctx, "sweep failed", "error", err)
 			case released > 0:

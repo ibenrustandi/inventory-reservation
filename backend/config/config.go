@@ -20,6 +20,9 @@ type Config struct {
 	// SweepInterval is how often the background sweeper releases
 	// reservations that are past their deadline.
 	SweepInterval time.Duration
+	// ShutdownTimeout is how long requests in flight get to finish after
+	// the service is asked to stop.
+	ShutdownTimeout time.Duration
 }
 
 // Load reads the configuration from the environment, applying defaults
@@ -50,11 +53,19 @@ func Load() (Config, error) {
 	if sweepInterval <= 0 {
 		return Config{}, fmt.Errorf("SWEEP_INTERVAL must be positive, got %s", sweepInterval)
 	}
+	shutdownTimeout, err := durationEnv("SHUTDOWN_TIMEOUT", 15*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	if shutdownTimeout <= 0 {
+		return Config{}, fmt.Errorf("SHUTDOWN_TIMEOUT must be positive, got %s", shutdownTimeout)
+	}
 	return Config{
-		Port:           port,
-		DatabaseURL:    databaseURL,
-		ReservationTTL: reservationTTL,
-		SweepInterval:  sweepInterval,
+		Port:            port,
+		DatabaseURL:     databaseURL,
+		ReservationTTL:  reservationTTL,
+		SweepInterval:   sweepInterval,
+		ShutdownTimeout: shutdownTimeout,
 	}, nil
 }
 

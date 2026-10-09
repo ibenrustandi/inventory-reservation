@@ -3,12 +3,12 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
+	"net"
 	"os"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/ibenrustandi/inventory-reservation/backend/config"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/delivery/http/handler"
@@ -22,25 +22,35 @@ import (
 func main() {
 	infrastructure.NewLogger()
 
-	if err := run(); err != nil {
-		slog.Error("server stopped", "error", err)
+	// The context is cancelled on Ctrl-C or when the container is stopped.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := run(ctx); err != nil {
+		slog.Error("server stopped with an error", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("server stopped")
 }
 
-func run() error {
+// run starts the service and blocks until ctx is cancelled and everything
+// has shut down, in this order: the HTTP server (requests in flight
+// finish), the sweeper (its current sweep finishes), the database pool.
+// The pool closes last because the other two use it until they stop.
+func run(ctx context.Context) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	ctx := context.Background()
-
 	db, err := infrastructure.NewPostgres(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("connect database: %w", err)
 	}
-	defer db.Close()
+	defer func() {
+		db.Close()
+		slog.Info("database pool closed")
+	}()
 
 	if err := infrastructure.Migrate(ctx, db); err != nil {
 		return fmt.Errorf("migrate database: %w", err)
@@ -52,22 +62,30 @@ func run() error {
 	inventoryHandler := handler.NewInventoryHandler(inventoryUsecase)
 	healthHandler := handler.NewHealthHandler(db)
 
-	// Graceful shutdown of the sweeper and the server comes with the
-	// signal handling.
-	go sweeper.New(inventoryUsecase, cfg.SweepInterval).Run(ctx)
-
 	app := infrastructure.NewGin()
 	route.RegisterRoute(app, inventoryHandler, healthHandler)
 
-	srv := &http.Server{
-		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           app,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	slog.Info("server listening", "addr", srv.Addr)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
+	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
-	return nil
+
+	// The sweeper has its own context so it keeps running while the HTTP
+	// server drains, and is stopped only afterwards.
+	sweeperCtx, stopSweeper := context.WithCancel(context.Background())
+	sweeperStopped := make(chan struct{})
+	go func() {
+		defer close(sweeperStopped)
+		sweeper.New(inventoryUsecase, cfg.SweepInterval).Run(sweeperCtx)
+	}()
+
+	slog.Info("server listening", "addr", listener.Addr().String())
+	serveErr := infrastructure.Serve(ctx, listener, app, cfg.ShutdownTimeout)
+	slog.Info("http server stopped")
+
+	stopSweeper()
+	<-sweeperStopped
+	slog.Info("sweeper stopped")
+
+	return serveErr
 }
