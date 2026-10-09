@@ -86,10 +86,33 @@ func (uc *InventoryUsecaseImpl) Reserve(ctx context.Context, request *model.Rese
 		return nil, err
 	}
 	if !reserved {
+		reserved, err = uc.reserveAfterReleasingDue(ctx, reservation)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !reserved {
 		return nil, uc.explainNotReserved(ctx, reservation)
 	}
 
 	return mapper.ToReserveResponse(reservation), nil
+}
+
+// reserveAfterReleasingDue is the slow path of Reserve, taken only when the
+// first attempt found too little stock. Holds on this item that are past
+// their deadline are released, and if that freed anything the reserve is
+// tried once more. It never loops. This keeps the sweeper's interval
+// invisible to buyers: nobody is told "sold out" because of stock held by
+// reservations that have already expired.
+func (uc *InventoryUsecaseImpl) reserveAfterReleasingDue(ctx context.Context, reservation *domain.Reservation) (bool, error) {
+	released, err := uc.InventoryRepository.ReleaseDueForItem(ctx, reservation.ItemID)
+	if err != nil {
+		return false, err
+	}
+	if released == 0 {
+		return false, nil
+	}
+	return uc.InventoryRepository.Reserve(ctx, reservation, uc.ReservationTTL)
 }
 
 // explainNotReserved works out why a reserve changed nothing: the item

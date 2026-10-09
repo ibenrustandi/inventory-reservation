@@ -157,6 +157,9 @@ func TestReserveUsecase(t *testing.T) {
 			ReserveFunc: func(context.Context, *domain.Reservation, time.Duration) (bool, error) {
 				return false, nil
 			},
+			ReleaseDueForItemFunc: func(context.Context, string) (int, error) {
+				return 0, nil
+			},
 			FindStockByItemIDFunc: func(context.Context, string) (*domain.Stock, error) {
 				return stock, stockErr
 			},

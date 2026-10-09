@@ -40,6 +40,11 @@ type InventoryRepository interface {
 	// released. Only one sweep runs at a time across every instance of the
 	// service; if another one is running, it releases nothing.
 	SweepDue(ctx context.Context, limit int) (int, error)
+	// ReleaseDueForItem releases every reservation of one item that is
+	// past its deadline and returns how many it released. It does not wait
+	// for, or exclude, a sweep that is running: a reservation the sweep is
+	// already releasing is skipped.
+	ReleaseDueForItem(ctx context.Context, itemID string) (int, error)
 }
 
 // InventoryRepositoryImpl is the PostgreSQL implementation.
@@ -173,13 +178,19 @@ const (
 	codeDeadlockDetected     = "40P01"
 )
 
-// inTx runs fn in a transaction. If the database aborts it because of a
-// deadlock or serialization failure, it is run once more.
+// inTx runs fn in a transaction, once more if the database aborted it to
+// resolve a conflict.
 func (r *InventoryRepositoryImpl) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
-	err := pgx.BeginFunc(ctx, r.DB, fn)
+	return retryOnConflict(func() error { return pgx.BeginFunc(ctx, r.DB, fn) })
+}
+
+// retryOnConflict runs fn, and runs it once more if the database aborted it
+// because of a deadlock or serialization failure.
+func retryOnConflict(fn func() error) error {
+	err := fn()
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && (pgErr.Code == codeDeadlockDetected || pgErr.Code == codeSerializationFailure) {
-		err = pgx.BeginFunc(ctx, r.DB, fn)
+		err = fn()
 	}
 	return err
 }
@@ -263,6 +274,19 @@ func (r *InventoryRepositoryImpl) SweepDue(ctx context.Context, limit int) (int,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("sweep due: %w", err)
+	}
+	return released, nil
+}
+
+func (r *InventoryRepositoryImpl) ReleaseDueForItem(ctx context.Context, itemID string) (int, error) {
+	var released int
+	err := retryOnConflict(func() error {
+		n, err := releaseDue(ctx, r.DB, &itemID, nil)
+		released = n
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("release due for item: %w", err)
 	}
 	return released, nil
 }

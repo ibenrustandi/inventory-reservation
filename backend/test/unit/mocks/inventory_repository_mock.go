@@ -17,6 +17,7 @@ type InventoryRepository struct {
 	ConfirmFunc             func(ctx context.Context, reservationID string) (*domain.Reservation, bool, error)
 	FindReservationByIDFunc func(ctx context.Context, reservationID string) (*domain.Reservation, error)
 	SweepDueFunc            func(ctx context.Context, limit int) (int, error)
+	ReleaseDueForItemFunc   func(ctx context.Context, itemID string) (int, error)
 }
 
 func (m *InventoryRepository) FindStockByItemID(ctx context.Context, itemID string) (*domain.Stock, error) {
@@ -37,4 +38,8 @@ func (m *InventoryRepository) FindReservationByID(ctx context.Context, reservati
 
 func (m *InventoryRepository) SweepDue(ctx context.Context, limit int) (int, error) {
 	return m.SweepDueFunc(ctx, limit)
+}
+
+func (m *InventoryRepository) ReleaseDueForItem(ctx context.Context, itemID string) (int, error) {
+	return m.ReleaseDueForItemFunc(ctx, itemID)
 }
