@@ -1,4 +1,4 @@
-package postgres_test
+package integration
 
 import (
 	"context"
@@ -9,18 +9,16 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/ibenrustandi/inventory-reservation/backend/internal/postgres"
-	"github.com/ibenrustandi/inventory-reservation/backend/internal/testdb"
+	"github.com/ibenrustandi/inventory-reservation/backend/internal/infrastructure"
 )
 
 const checkViolation = "23514"
 
 func TestMigrate_SeedsItem(t *testing.T) {
-	pool := testdb.Pool(t)
 	ctx := context.Background()
 
 	var stock, reserved int
-	err := pool.QueryRow(ctx,
+	err := db.QueryRow(ctx,
 		`SELECT item_stock, item_stock_reserved FROM inv_item WHERE item_id = 'item_4021'`,
 	).Scan(&stock, &reserved)
 	if err != nil {
@@ -32,15 +30,13 @@ func TestMigrate_SeedsItem(t *testing.T) {
 }
 
 func TestMigrate_IsIdempotent(t *testing.T) {
-	pool := testdb.Pool(t)
 
-	if err := postgres.Migrate(context.Background(), pool); err != nil {
+	if err := infrastructure.Migrate(context.Background(), db); err != nil {
 		t.Fatalf("second Migrate: %v", err)
 	}
 }
 
 func TestMigrate_UsesPrefixedBookkeepingTable(t *testing.T) {
-	pool := testdb.Pool(t)
 	ctx := context.Background()
 
 	for table, want := range map[string]bool{
@@ -48,7 +44,7 @@ func TestMigrate_UsesPrefixedBookkeepingTable(t *testing.T) {
 		"goose_db_version":     false,
 	} {
 		var exists bool
-		err := pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL`, table).Scan(&exists)
+		err := db.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL`, table).Scan(&exists)
 		if err != nil {
 			t.Fatalf("look up %s: %v", table, err)
 		}
@@ -59,11 +55,10 @@ func TestMigrate_UsesPrefixedBookkeepingTable(t *testing.T) {
 }
 
 func TestSchema_RejectsInvalidRows(t *testing.T) {
-	pool := testdb.Pool(t)
 	ctx := context.Background()
 
 	itemID := fmt.Sprintf("item_schema_%d", time.Now().UnixNano())
-	if _, err := pool.Exec(ctx,
+	if _, err := db.Exec(ctx,
 		`INSERT INTO inv_item (item_id, item_stock) VALUES ($1, 5)`, itemID,
 	); err != nil {
 		t.Fatalf("insert item: %v", err)
@@ -107,7 +102,7 @@ func TestSchema_RejectsInvalidRows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := pool.Exec(ctx, tt.sql, tt.args...)
+			_, err := db.Exec(ctx, tt.sql, tt.args...)
 
 			var pgErr *pgconn.PgError
 			if !errors.As(err, &pgErr) || pgErr.Code != checkViolation {

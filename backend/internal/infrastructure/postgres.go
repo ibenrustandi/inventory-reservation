@@ -1,5 +1,6 @@
-// Package postgres holds the PostgreSQL connection, migrations and queries.
-package postgres
+// Package infrastructure sets up the frameworks and drivers the service
+// runs on: the Gin engine, the PostgreSQL pool, migrations and the logger.
+package infrastructure
 
 import (
 	"context"
@@ -10,15 +11,15 @@ import (
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 
-	"github.com/ibenrustandi/inventory-reservation/backend/migrations"
+	"github.com/ibenrustandi/inventory-reservation/backend/db/migrations"
 )
 
 // migrationTable is the bookkeeping table goose uses to record applied
 // migrations. It is renamed to follow the inv_ table prefix.
 const migrationTable = "inv_schema_migration"
 
-// Connect opens a connection pool and verifies the database answers.
-func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+// NewPostgres opens a connection pool and verifies the database answers.
+func NewPostgres(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("open pool: %w", err)
