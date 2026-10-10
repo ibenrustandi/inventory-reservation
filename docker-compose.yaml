@@ -29,6 +29,10 @@ services:
       # RESERVATION_TTL=30s docker compose up
       RESERVATION_TTL: "${RESERVATION_TTL:-5m}"
       SWEEP_INTERVAL: "${SWEEP_INTERVAL:-1s}"
+      REQUEST_TIMEOUT: "${REQUEST_TIMEOUT:-10s}"
+      # SHUTDOWN_TIMEOUT is left at its default of 15s on purpose: it must
+      # stay below stop_grace_period, or Docker kills the server before it
+      # has finished shutting down.
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:
