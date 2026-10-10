@@ -90,16 +90,16 @@ func decodeJSON(c *gin.Context, dst any) error {
 	var typeErr *json.UnmarshalTypeError
 	switch {
 	case errors.As(err, &typeErr) && typeErr.Field != "":
-		return exception.NewInvalidRequest(model.FieldError{
+		return exception.NewInvalidRequest(exception.FieldError{
 			Field:  typeErr.Field,
 			Reason: "must be " + jsonTypeName(typeErr.Type),
 		})
 	case errors.As(err, &typeErr):
-		return exception.NewInvalidRequest(model.FieldError{Field: "body", Reason: "must be a JSON object"})
+		return exception.NewInvalidRequest(exception.FieldError{Field: "body", Reason: "must be a JSON object"})
 	case errors.Is(err, io.EOF):
-		return exception.NewInvalidRequest(model.FieldError{Field: "body", Reason: "is required"})
+		return exception.NewInvalidRequest(exception.FieldError{Field: "body", Reason: "is required"})
 	default:
-		return exception.NewInvalidRequest(model.FieldError{Field: "body", Reason: "must be valid JSON"})
+		return exception.NewInvalidRequest(exception.FieldError{Field: "body", Reason: "must be valid JSON"})
 	}
 }
 

@@ -16,12 +16,6 @@ type ErrorBody struct {
 	Details any    `json:"details,omitempty"`
 }
 
-// FieldError names one invalid request field.
-type FieldError struct {
-	Field  string `json:"field"`
-	Reason string `json:"reason"`
-}
-
 // StatusResponse is the body of the health endpoints.
 type StatusResponse struct {
 	Status string `json:"status"`

@@ -1,9 +1,7 @@
 // Package exception defines the errors the service reports to clients.
 // It knows nothing about HTTP; the delivery layer decides which status
-// code each error gets.
+// code each error gets. It imports nothing else from this project.
 package exception
-
-import "github.com/ibenrustandi/inventory-reservation/backend/internal/model"
 
 // Error is an error the client is told about. Code is stable and
 // machine-readable; clients switch on it.
@@ -51,7 +49,14 @@ var (
 	ErrServiceUnavailable  = &Error{Code: "SERVICE_UNAVAILABLE", Message: "The service is busy. Try again shortly."}
 )
 
+// FieldError names one invalid request field and says what is wrong with
+// it. It is listed in the details of ErrInvalidRequest.
+type FieldError struct {
+	Field  string `json:"field"`
+	Reason string `json:"reason"`
+}
+
 // NewInvalidRequest returns ErrInvalidRequest listing the invalid fields.
-func NewInvalidRequest(fields ...model.FieldError) *Error {
+func NewInvalidRequest(fields ...FieldError) *Error {
 	return ErrInvalidRequest.WithDetails(map[string]any{"fields": fields})
 }

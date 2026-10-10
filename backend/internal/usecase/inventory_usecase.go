@@ -180,8 +180,8 @@ func (uc *InventoryUsecaseImpl) ReleaseExpired(ctx context.Context) (int, error)
 	}
 }
 
-func validateReserveRequest(request *model.ReserveRequest) []model.FieldError {
-	var fieldErrs []model.FieldError
+func validateReserveRequest(request *model.ReserveRequest) []exception.FieldError {
+	var fieldErrs []exception.FieldError
 	if fieldErr := validateID("user_id", request.UserID); fieldErr != nil {
 		fieldErrs = append(fieldErrs, *fieldErr)
 	}
@@ -190,9 +190,9 @@ func validateReserveRequest(request *model.ReserveRequest) []model.FieldError {
 	}
 	switch {
 	case request.Quantity == nil:
-		fieldErrs = append(fieldErrs, model.FieldError{Field: "quantity", Reason: "is required"})
+		fieldErrs = append(fieldErrs, exception.FieldError{Field: "quantity", Reason: "is required"})
 	case !domain.ValidQuantity(*request.Quantity):
-		fieldErrs = append(fieldErrs, model.FieldError{
+		fieldErrs = append(fieldErrs, exception.FieldError{
 			Field:  "quantity",
 			Reason: fmt.Sprintf("must be an integer from %d to %d", domain.MinQuantity, domain.MaxQuantity),
 		})
@@ -202,12 +202,12 @@ func validateReserveRequest(request *model.ReserveRequest) []model.FieldError {
 
 // validateID checks a required ID field and returns what is wrong with it,
 // or nil.
-func validateID(field, value string) *model.FieldError {
+func validateID(field, value string) *exception.FieldError {
 	if value == "" {
-		return &model.FieldError{Field: field, Reason: "is required"}
+		return &exception.FieldError{Field: field, Reason: "is required"}
 	}
 	if !domain.ValidID(value) {
-		return &model.FieldError{Field: field, Reason: domain.IDFormat}
+		return &exception.FieldError{Field: field, Reason: domain.IDFormat}
 	}
 	return nil
 }
