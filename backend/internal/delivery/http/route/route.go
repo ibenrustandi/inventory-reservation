@@ -11,11 +11,9 @@ import (
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/exception"
 )
 
-// requestTimeout bounds how long a request may use the database.
-const requestTimeout = 10 * time.Second
-
 // RegisterRoute attaches the middleware and every route to the app.
-func RegisterRoute(app *gin.Engine, inventoryHandler *handler.InventoryHandler, healthHandler *handler.HealthHandler) {
+// requestTimeout bounds how long one request may run.
+func RegisterRoute(app *gin.Engine, inventoryHandler *handler.InventoryHandler, healthHandler *handler.HealthHandler, requestTimeout time.Duration) {
 	// Order matters: the logger must see the status the error handler
 	// writes, and the error handler must see what recovery reports.
 	app.Use(

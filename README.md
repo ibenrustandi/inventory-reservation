@@ -81,6 +81,7 @@ Backend settings are environment variables.
 | `PORT` | `8080` | HTTP port |
 | `RESERVATION_TTL` | `5m` | How long a reservation holds stock |
 | `SWEEP_INTERVAL` | `1s` | How often expired reservations are released in the background |
+| `REQUEST_TIMEOUT` | `10s` | Longest one request may run before it is cancelled and answered with `503`; must be below `SHUTDOWN_TIMEOUT` |
 | `SHUTDOWN_TIMEOUT` | `15s` | How long in-flight requests get to finish on shutdown |
 
 ## Tests
@@ -168,7 +169,7 @@ curl -X POST http://localhost:8080/api/v1/inventory/confirm \
 | 404 | `NOT_FOUND` | Unknown route |
 | 405 | `METHOD_NOT_ALLOWED` | Wrong method for a route |
 | 500 | `INTERNAL_ERROR` | Unexpected failure; details are logged, never returned |
-| 503 | `SERVICE_UNAVAILABLE` | The request ran out of time (10 seconds); sent with `Retry-After` |
+| 503 | `SERVICE_UNAVAILABLE` | The request ran out of time (`REQUEST_TIMEOUT`); sent with `Retry-After` |
 
 Health: `GET /health` (process is up) and `GET /ready` (database answers).
 

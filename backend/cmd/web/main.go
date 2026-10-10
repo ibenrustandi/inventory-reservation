@@ -63,7 +63,7 @@ func run(ctx context.Context) error {
 	healthHandler := handler.NewHealthHandler(db)
 
 	app := infrastructure.NewGin()
-	route.RegisterRoute(app, inventoryHandler, healthHandler)
+	route.RegisterRoute(app, inventoryHandler, healthHandler, cfg.RequestTimeout)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
 	if err != nil {
@@ -80,7 +80,7 @@ func run(ctx context.Context) error {
 	}()
 
 	slog.Info("server listening", "addr", listener.Addr().String())
-	serveErr := infrastructure.Serve(ctx, listener, app, cfg.ShutdownTimeout)
+	serveErr := infrastructure.Serve(ctx, listener, app, cfg.RequestTimeout, cfg.ShutdownTimeout)
 	slog.Info("http server stopped")
 
 	stopSweeper()

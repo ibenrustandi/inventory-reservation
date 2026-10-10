@@ -13,7 +13,7 @@ func TestConfigLoad(t *testing.T) {
 	// clearEnv makes every setting unset except the required one.
 	clearEnv := func(t *testing.T) {
 		t.Helper()
-		for _, key := range []string{"PORT", "DB_MAX_CONNS", "RESERVATION_TTL", "SWEEP_INTERVAL", "SHUTDOWN_TIMEOUT"} {
+		for _, key := range []string{"PORT", "DB_MAX_CONNS", "RESERVATION_TTL", "SWEEP_INTERVAL", "REQUEST_TIMEOUT", "SHUTDOWN_TIMEOUT"} {
 			t.Setenv(key, "")
 		}
 		t.Setenv("DATABASE_URL", "postgres://localhost/inventory")
@@ -31,6 +31,7 @@ func TestConfigLoad(t *testing.T) {
 			DatabaseMaxConns: 20,
 			ReservationTTL:   5 * time.Minute,
 			SweepInterval:    time.Second,
+			RequestTimeout:   10 * time.Second,
 			ShutdownTimeout:  15 * time.Second,
 		}, cfg)
 	})
@@ -41,6 +42,7 @@ func TestConfigLoad(t *testing.T) {
 		t.Setenv("DB_MAX_CONNS", "8")
 		t.Setenv("RESERVATION_TTL", "30s")
 		t.Setenv("SWEEP_INTERVAL", "250ms")
+		t.Setenv("REQUEST_TIMEOUT", "3s")
 		t.Setenv("SHUTDOWN_TIMEOUT", "1m")
 
 		cfg, err := config.Load()
@@ -50,6 +52,7 @@ func TestConfigLoad(t *testing.T) {
 		require.Equal(t, 8, cfg.DatabaseMaxConns)
 		require.Equal(t, 30*time.Second, cfg.ReservationTTL)
 		require.Equal(t, 250*time.Millisecond, cfg.SweepInterval)
+		require.Equal(t, 3*time.Second, cfg.RequestTimeout)
 		require.Equal(t, time.Minute, cfg.ShutdownTimeout)
 	})
 
@@ -67,6 +70,8 @@ func TestConfigLoad(t *testing.T) {
 		{"ttl is negative", "RESERVATION_TTL", "-1s"},
 		{"sweep interval is zero", "SWEEP_INTERVAL", "0s"},
 		{"shutdown timeout is zero", "SHUTDOWN_TIMEOUT", "0s"},
+		{"request timeout is zero", "REQUEST_TIMEOUT", "0s"},
+		{"request timeout is not below the shutdown timeout", "REQUEST_TIMEOUT", "15s"},
 	}
 	for _, tt := range invalid {
 		t.Run(tt.name, func(t *testing.T) {

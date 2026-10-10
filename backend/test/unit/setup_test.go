@@ -34,12 +34,15 @@ func TestMain(m *testing.M) {
 // cases and database check.
 func newApp(inventoryUsecase usecase.InventoryUsecase, db handler.Pinger) http.Handler {
 	app := infrastructure.NewGin()
-	route.RegisterRoute(app, handler.NewInventoryHandler(inventoryUsecase), handler.NewHealthHandler(db))
+	route.RegisterRoute(app, handler.NewInventoryHandler(inventoryUsecase), handler.NewHealthHandler(db), requestTimeout)
 	return app
 }
 
 // reservationTTL is the reservation lifetime the unit tests configure.
 const reservationTTL = 5 * time.Minute
+
+// requestTimeout is the request timeout the unit tests configure.
+const requestTimeout = 10 * time.Second
 
 // do sends a request with no body to the app.
 func do(t *testing.T, app http.Handler, method, target string) *httptest.ResponseRecorder {

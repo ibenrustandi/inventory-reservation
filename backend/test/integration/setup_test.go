@@ -37,6 +37,8 @@ const (
 	reservationTTL = 5 * time.Minute
 	// databaseMaxConns is the pool size the app under test uses.
 	databaseMaxConns = 20
+	// requestTimeout is the request timeout the app under test uses.
+	requestTimeout = 10 * time.Second
 )
 
 var (
@@ -101,7 +103,7 @@ func setup() (cleanup func(), err error) {
 	inventoryRepository = repository.NewInventoryRepository(db)
 	inventoryUsecase = usecase.NewInventoryUsecase(inventoryRepository, reservationTTL)
 	engine := infrastructure.NewGin()
-	route.RegisterRoute(engine, handler.NewInventoryHandler(inventoryUsecase), handler.NewHealthHandler(db))
+	route.RegisterRoute(engine, handler.NewInventoryHandler(inventoryUsecase), handler.NewHealthHandler(db), requestTimeout)
 	app = engine
 
 	return func() {

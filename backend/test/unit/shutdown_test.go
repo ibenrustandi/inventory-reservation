@@ -43,7 +43,7 @@ func startSlowServer(t *testing.T, shutdownTimeout time.Duration) *slowServer {
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	s.shutdown = cancel
-	go func() { s.result <- infrastructure.Serve(ctx, listener, handler, shutdownTimeout) }()
+	go func() { s.result <- infrastructure.Serve(ctx, listener, handler, requestTimeout, shutdownTimeout) }()
 	t.Cleanup(cancel)
 	return s
 }

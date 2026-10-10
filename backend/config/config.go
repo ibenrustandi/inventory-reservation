@@ -24,8 +24,13 @@ type Config struct {
 	// SweepInterval is how often the background sweeper releases
 	// reservations that are past their deadline.
 	SweepInterval time.Duration
+	// RequestTimeout is the longest one request may run. A request that
+	// is still waiting on the database when it passes is cancelled, which
+	// frees its connection, and answered with 503.
+	RequestTimeout time.Duration
 	// ShutdownTimeout is how long requests in flight get to finish after
-	// the service is asked to stop.
+	// the service is asked to stop. It is longer than RequestTimeout, so
+	// shutting down never has to cut a request off.
 	ShutdownTimeout time.Duration
 }
 
@@ -71,12 +76,23 @@ func Load() (Config, error) {
 	if shutdownTimeout <= 0 {
 		return Config{}, fmt.Errorf("SHUTDOWN_TIMEOUT must be positive, got %s", shutdownTimeout)
 	}
+	requestTimeout, err := durationEnv("REQUEST_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	if requestTimeout <= 0 {
+		return Config{}, fmt.Errorf("REQUEST_TIMEOUT must be positive, got %s", requestTimeout)
+	}
+	if requestTimeout >= shutdownTimeout {
+		return Config{}, fmt.Errorf("REQUEST_TIMEOUT (%s) must be below SHUTDOWN_TIMEOUT (%s)", requestTimeout, shutdownTimeout)
+	}
 	return Config{
 		Port:             port,
 		DatabaseURL:      databaseURL,
 		DatabaseMaxConns: databaseMaxConns,
 		ReservationTTL:   reservationTTL,
 		SweepInterval:    sweepInterval,
+		RequestTimeout:   requestTimeout,
 		ShutdownTimeout:  shutdownTimeout,
 	}, nil
 }

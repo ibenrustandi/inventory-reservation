@@ -10,26 +10,27 @@ import (
 )
 
 // Connection timeouts. They protect the server from clients that send or
-// read slowly. writeTimeout must stay above the request timeout set in the
-// route package (10 seconds), so a request that runs out of time still gets
-// its error response written.
+// read slowly.
 const (
 	readHeaderTimeout = 5 * time.Second
 	readTimeout       = 10 * time.Second
-	writeTimeout      = 15 * time.Second
 	idleTimeout       = 60 * time.Second
+	// writeMargin is added to the request timeout to get the write
+	// timeout, so a request that runs out of time still gets its error
+	// response written.
+	writeMargin = 5 * time.Second
 )
 
 // Serve answers HTTP requests on the listener until ctx is cancelled, then
 // shuts down gracefully: it stops accepting new connections and waits up
 // to shutdownTimeout for requests in flight to finish. It returns nil
-// after a clean shutdown.
-func Serve(ctx context.Context, listener net.Listener, handler http.Handler, shutdownTimeout time.Duration) error {
+// after a clean shutdown. requestTimeout is the longest a handler runs.
+func Serve(ctx context.Context, listener net.Listener, handler http.Handler, requestTimeout, shutdownTimeout time.Duration) error {
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
-		WriteTimeout:      writeTimeout,
+		WriteTimeout:      requestTimeout + writeMargin,
 		IdleTimeout:       idleTimeout,
 	}
 
