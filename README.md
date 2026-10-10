@@ -41,6 +41,25 @@ RESERVATION_TTL=30s docker compose up --build
 docker compose down -v
 ```
 
+## Questions the dashboard raises
+
+Two things stand out when using the dashboard. Both are deliberate choices, recorded as decisions in [SPEC.md](SPEC.md), and neither comes from the assignment brief.
+
+**After I reserve, why can I not make a second reservation?**
+
+The dashboard follows one reservation at a time (SPEC FE-6). While that reservation is waiting, the form steps aside. It returns as soon as the reservation ends: confirm it, or let it expire, then choose to reserve again. This is not a five-minute lock, and it is a limit of the dashboard only. The backend lets a user hold several reservations at once (SPEC D-6), which can be seen while a reservation is waiting:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/inventory/reserve \
+  -d '{"user_id":"usr_9981","item_id":"item_4021","quantity":1}'
+```
+
+One reservation with one countdown was the smallest screen that meets the brief's "show active reservation details alongside a live 5-minute countdown timer". Following several reservations at once was cut for time; see [ARCHITECTURE.md](ARCHITECTURE.md) §3.
+
+**The User ID is free text. Can one person reserve more than once?**
+
+Yes. There is no login, and the backend trusts the `user_id` it is sent (SPEC D-7), so the same person can reserve again under the same ID or another one, and there is no limit per user. This follows the brief, which puts `user_id` in the request body and asks for a form field for it. A real flash sale would take the user from a login session and cap how much one user can hold; authentication and rate limiting are listed in ARCHITECTURE.md as cut for time and as part of the scaling redesign.
+
 ## Run the parts separately
 
 Requires Go 1.26+ and Node.js 24+.
