@@ -30,6 +30,8 @@ export function describeError(error: unknown): string {
       return 'This reservation no longer exists. Reserve again to continue.'
     case 'NETWORK_ERROR':
       return 'Cannot reach the server. Check your connection and try again.'
+    case 'SERVICE_UNAVAILABLE':
+      return 'The server is busy right now. Wait a moment and try again.'
     case 'INTERNAL_ERROR':
     case 'NOT_FOUND':
     case 'METHOD_NOT_ALLOWED':

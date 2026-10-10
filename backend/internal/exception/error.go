@@ -48,6 +48,7 @@ var (
 
 	// server
 	ErrInternalServerError = &Error{Code: "INTERNAL_ERROR", Message: "An unexpected error occurred."}
+	ErrServiceUnavailable  = &Error{Code: "SERVICE_UNAVAILABLE", Message: "The service is busy. Try again shortly."}
 )
 
 // NewInvalidRequest returns ErrInvalidRequest listing the invalid fields.

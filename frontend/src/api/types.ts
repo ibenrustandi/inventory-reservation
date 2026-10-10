@@ -39,6 +39,7 @@ export type BackendErrorCode =
   | 'NOT_FOUND'
   | 'METHOD_NOT_ALLOWED'
   | 'INTERNAL_ERROR'
+  | 'SERVICE_UNAVAILABLE'
 
 /**
  * Every code an ApiError can carry: the backend's, plus two the client sets

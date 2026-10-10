@@ -3,6 +3,7 @@ package unit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -131,6 +132,29 @@ func TestStock_MapsUsecaseResult(t *testing.T) {
 			t.Fatalf("body leaks the unmapped error: %s", rec.Body)
 		}
 	})
+
+	// AC-OP-03
+	for name, cause := range map[string]error{
+		"timed out request is a 503 with Retry-After": fmt.Errorf("find stock by item id: %w", context.DeadlineExceeded),
+		"cancelled request is a 503 with Retry-After": fmt.Errorf("find stock by item id: %w", context.Canceled),
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := do(t, newApp(stockReturning(nil, cause), &mocks.Pinger{}), http.MethodGet, stockTarget)
+
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+			}
+			if got := decodeError(t, rec).Error.Code; got != exception.ErrServiceUnavailable.Code {
+				t.Fatalf("code = %q, want %q", got, exception.ErrServiceUnavailable.Code)
+			}
+			if got := rec.Header().Get("Retry-After"); got == "" {
+				t.Fatal("response has no Retry-After header")
+			}
+			if strings.Contains(rec.Body.String(), "find stock") {
+				t.Fatalf("body leaks the internal error: %s", rec.Body)
+			}
+		})
+	}
 
 	t.Run("panic becomes a 500 envelope", func(t *testing.T) {
 		uc := &mocks.InventoryUsecase{

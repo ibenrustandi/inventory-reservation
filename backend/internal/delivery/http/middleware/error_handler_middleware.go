@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -22,12 +23,18 @@ var statusByCode = map[string]int{
 	exception.ErrRouteNotFound.Code:       http.StatusNotFound,
 	exception.ErrMethodNotAllowed.Code:    http.StatusMethodNotAllowed,
 	exception.ErrInternalServerError.Code: http.StatusInternalServerError,
+	exception.ErrServiceUnavailable.Code:  http.StatusServiceUnavailable,
 }
+
+// retryAfterSeconds is what a client is told to wait after a 503.
+const retryAfterSeconds = "1"
 
 // NewErrorHandler writes the error envelope for any error a handler
 // reported with c.Error. An error that is not an *exception.Error, or one
 // with no status mapping, is logged and sent as ErrInternalServerError, so
-// internals never leak.
+// internals never leak. A request that ran out of time, or whose client
+// went away, is not a server fault: it is answered with
+// ErrServiceUnavailable and a Retry-After header.
 func NewErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
@@ -42,6 +49,12 @@ func NewErrorHandler() gin.HandlerFunc {
 		status, mapped := 0, false
 		if errors.As(err, &e) {
 			status, mapped = statusByCode[e.Code]
+		}
+		if !mapped && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+			slog.WarnContext(c.Request.Context(), "request timed out or was cancelled",
+				"request_id", requestID, "error", err)
+			e, status, mapped = exception.ErrServiceUnavailable, http.StatusServiceUnavailable, true
+			c.Header("Retry-After", retryAfterSeconds)
 		}
 		if !mapped {
 			slog.ErrorContext(c.Request.Context(), "request failed",
