@@ -35,6 +35,8 @@ const (
 	postgresImage = "postgres:17-alpine"
 	// reservationTTL is the reservation lifetime the app under test uses.
 	reservationTTL = 5 * time.Minute
+	// databaseMaxConns is the pool size the app under test uses.
+	databaseMaxConns = 20
 )
 
 var (
@@ -85,7 +87,7 @@ func setup() (cleanup func(), err error) {
 	}
 
 	databaseURL = url
-	db, err = infrastructure.NewPostgres(ctx, url)
+	db, err = infrastructure.NewPostgres(ctx, url, databaseMaxConns)
 	if err != nil {
 		stopContainer()
 		return nil, err

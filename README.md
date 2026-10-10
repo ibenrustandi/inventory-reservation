@@ -77,6 +77,7 @@ Backend settings are environment variables.
 | Variable | Default | Meaning |
 |---|---|---|
 | `DATABASE_URL` | required | PostgreSQL connection string |
+| `DB_MAX_CONNS` | `20` | Largest number of PostgreSQL connections this instance opens |
 | `PORT` | `8080` | HTTP port |
 | `RESERVATION_TTL` | `5m` | How long a reservation holds stock |
 | `SWEEP_INTERVAL` | `1s` | How often expired reservations are released in the background |

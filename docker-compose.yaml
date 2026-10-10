@@ -24,6 +24,7 @@ services:
     environment:
       PORT: "8080"
       DATABASE_URL: postgres://inventory:inventory@postgres:5432/inventory?sslmode=disable
+      DB_MAX_CONNS: "${DB_MAX_CONNS:-20}"
       # Shorten these to watch expiry without waiting, for example
       # RESERVATION_TTL=30s docker compose up
       RESERVATION_TTL: "${RESERVATION_TTL:-5m}"

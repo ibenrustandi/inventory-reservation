@@ -18,9 +18,18 @@ import (
 // migrations. It is renamed to follow the inv_ table prefix.
 const migrationTable = "inv_schema_migration"
 
-// NewPostgres opens a connection pool and verifies the database answers.
-func NewPostgres(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, databaseURL)
+// NewPostgres opens a connection pool of at most maxConns connections and
+// verifies the database answers. The size is set explicitly because the
+// driver's default follows the CPU count, which is as low as 4 in a small
+// container.
+func NewPostgres(ctx context.Context, databaseURL string, maxConns int) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database url: %w", err)
+	}
+	poolConfig.MaxConns = int32(maxConns)
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("open pool: %w", err)
 	}

@@ -15,6 +15,10 @@ type Config struct {
 	Port int
 	// DatabaseURL is the PostgreSQL connection string.
 	DatabaseURL string
+	// DatabaseMaxConns is the most connections this instance opens to
+	// PostgreSQL. Every instance has its own pool, so the total across
+	// instances must stay below the server's max_connections.
+	DatabaseMaxConns int
 	// ReservationTTL is how long a reservation holds stock before it expires.
 	ReservationTTL time.Duration
 	// SweepInterval is how often the background sweeper releases
@@ -39,6 +43,13 @@ func Load() (Config, error) {
 	if databaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
 	}
+	databaseMaxConns, err := intEnv("DB_MAX_CONNS", 20)
+	if err != nil {
+		return Config{}, err
+	}
+	if databaseMaxConns < 1 {
+		return Config{}, fmt.Errorf("DB_MAX_CONNS must be at least 1, got %d", databaseMaxConns)
+	}
 	reservationTTL, err := durationEnv("RESERVATION_TTL", 5*time.Minute)
 	if err != nil {
 		return Config{}, err
@@ -61,11 +72,12 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SHUTDOWN_TIMEOUT must be positive, got %s", shutdownTimeout)
 	}
 	return Config{
-		Port:            port,
-		DatabaseURL:     databaseURL,
-		ReservationTTL:  reservationTTL,
-		SweepInterval:   sweepInterval,
-		ShutdownTimeout: shutdownTimeout,
+		Port:             port,
+		DatabaseURL:      databaseURL,
+		DatabaseMaxConns: databaseMaxConns,
+		ReservationTTL:   reservationTTL,
+		SweepInterval:    sweepInterval,
+		ShutdownTimeout:  shutdownTimeout,
 	}, nil
 }
 

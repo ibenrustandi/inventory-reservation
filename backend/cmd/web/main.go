@@ -43,7 +43,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	db, err := infrastructure.NewPostgres(ctx, cfg.DatabaseURL)
+	db, err := infrastructure.NewPostgres(ctx, cfg.DatabaseURL, cfg.DatabaseMaxConns)
 	if err != nil {
 		return fmt.Errorf("connect database: %w", err)
 	}
