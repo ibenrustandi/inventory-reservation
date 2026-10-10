@@ -5,6 +5,7 @@ import { describeError, fieldErrorsOf } from './errorMessages'
 
 const ALL_CODES: ErrorCode[] = [
   'INVALID_REQUEST',
+  'PAYLOAD_TOO_LARGE',
   'ITEM_NOT_FOUND',
   'INSUFFICIENT_STOCK',
   'RESERVATION_NOT_FOUND',

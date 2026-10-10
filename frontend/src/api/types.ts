@@ -32,6 +32,7 @@ export interface Confirmation {
 /** Error codes the backend can return. */
 export type BackendErrorCode =
   | 'INVALID_REQUEST'
+  | 'PAYLOAD_TOO_LARGE'
   | 'ITEM_NOT_FOUND'
   | 'INSUFFICIENT_STOCK'
   | 'RESERVATION_NOT_FOUND'

@@ -21,6 +21,7 @@ export function describeError(error: unknown): string {
       return `Only ${available} ${unitWord(available)} available. Lower the quantity and try again.`
     }
     case 'INVALID_REQUEST':
+    case 'PAYLOAD_TOO_LARGE':
       return 'Some details are not valid. Check the form and try again.'
     case 'ITEM_NOT_FOUND':
       return 'This item is not available.'

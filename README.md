@@ -162,6 +162,7 @@ curl -X POST http://localhost:8080/api/v1/inventory/confirm \
 | HTTP | Code | When |
 |---|---|---|
 | 400 | `INVALID_REQUEST` | Malformed JSON, or a missing or invalid field (`details.fields` lists them) |
+| 413 | `PAYLOAD_TOO_LARGE` | The request body is over 64 KB |
 | 404 | `ITEM_NOT_FOUND` | The item does not exist |
 | 404 | `RESERVATION_NOT_FOUND` | The reservation does not exist |
 | 409 | `INSUFFICIENT_STOCK` | Not enough available stock |

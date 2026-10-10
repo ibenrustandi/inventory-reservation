@@ -41,6 +41,7 @@ var (
 
 	// request
 	ErrInvalidRequest   = &Error{Code: "INVALID_REQUEST", Message: "The request is invalid."}
+	ErrPayloadTooLarge  = &Error{Code: "PAYLOAD_TOO_LARGE", Message: "The request body is too large."}
 	ErrRouteNotFound    = &Error{Code: "NOT_FOUND", Message: "The route does not exist."}
 	ErrMethodNotAllowed = &Error{Code: "METHOD_NOT_ALLOWED", Message: "The method is not allowed for this route."}
 

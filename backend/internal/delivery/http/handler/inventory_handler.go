@@ -73,22 +73,44 @@ func (h *InventoryHandler) Confirm(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// maxBodyBytes is far above any valid request and stops a client from
+// MaxBodyBytes is far above any valid request and stops a client from
 // sending an unbounded body.
-const maxBodyBytes = 64 << 10
+const MaxBodyBytes = 64 << 10
 
 // decodeJSON reads the request body into dst. A body that is not valid
-// JSON, or has a field of the wrong type, becomes an invalid-request error
-// naming the problem.
+// JSON, has a field of the wrong type, or is followed by more data becomes
+// an invalid-request error naming the problem. A body over MaxBodyBytes
+// becomes a payload-too-large error.
 func decodeJSON(c *gin.Context, dst any) error {
-	body := http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
-	err := json.NewDecoder(body).Decode(dst)
-	if err == nil {
-		return nil
+	tooLarge := exception.ErrPayloadTooLarge.WithDetails(map[string]any{"max_bytes": MaxBodyBytes})
+	// Refuse a declared oversize before reading anything. A body of
+	// undeclared or understated length is caught by the reader below.
+	if c.Request.ContentLength > MaxBodyBytes {
+		return tooLarge
 	}
 
-	var typeErr *json.UnmarshalTypeError
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, MaxBodyBytes))
+	err := decoder.Decode(dst)
+	if err == nil {
+		// The body must be one JSON value and nothing else.
+		_, err = decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		var sizeErr *http.MaxBytesError
+		if errors.As(err, &sizeErr) {
+			return tooLarge
+		}
+		return exception.NewInvalidRequest(exception.FieldError{Field: "body", Reason: "must be a single JSON object"})
+	}
+
+	var (
+		typeErr *json.UnmarshalTypeError
+		sizeErr *http.MaxBytesError
+	)
 	switch {
+	case errors.As(err, &sizeErr):
+		return tooLarge
 	case errors.As(err, &typeErr) && typeErr.Field != "":
 		return exception.NewInvalidRequest(exception.FieldError{
 			Field:  typeErr.Field,

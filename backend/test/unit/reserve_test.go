@@ -3,12 +3,15 @@ package unit
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/ibenrustandi/inventory-reservation/backend/internal/delivery/http/handler"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/domain"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/exception"
 	"github.com/ibenrustandi/inventory-reservation/backend/internal/model"
@@ -37,6 +40,8 @@ func TestReserve_InvalidRequest(t *testing.T) {
 		{"empty body", ``, []string{"body"}},
 		{"malformed JSON", `{"user_id":`, []string{"body"}},
 		{"not an object", `[1,2]`, []string{"body"}},
+		{"data after the object", `{"user_id":"usr_1","item_id":"item_4021","quantity":2} extra`, []string{"body"}},
+		{"second object after the first", `{"user_id":"usr_1","item_id":"item_4021","quantity":2}{}`, []string{"body"}},
 		{"all fields missing", `{}`, []string{"user_id", "item_id", "quantity"}},
 		{"user_id missing", `{"item_id":"item_4021","quantity":2}`, []string{"user_id"}},
 		{"item_id missing", `{"user_id":"usr_1","quantity":2}`, []string{"item_id"}},
@@ -64,6 +69,40 @@ func TestReserve_InvalidRequest(t *testing.T) {
 			}
 			if got := invalidFields(t, body); !slices.Equal(got, tt.wantFields) {
 				t.Fatalf("invalid fields = %v, want %v", got, tt.wantFields)
+			}
+		})
+	}
+}
+
+func TestReserve_RejectsOversizedBody(t *testing.T) {
+	inventoryRepository := &mocks.InventoryRepository{
+		ReserveFunc: func(context.Context, *domain.Reservation, time.Duration) (bool, error) {
+			t.Error("repository must not be called for an oversized request")
+			return false, errors.New("unreachable")
+		},
+	}
+	app := newApp(usecase.NewInventoryUsecase(inventoryRepository, reservationTTL), &mocks.Pinger{})
+	// Valid JSON all the way, so only its size is wrong.
+	oversized := `{"user_id":"` + strings.Repeat("a", handler.MaxBodyBytes) + `","item_id":"item_4021","quantity":2}`
+
+	tests := []struct {
+		name string
+		body io.Reader
+	}{
+		{"length declared", strings.NewReader(oversized)},
+		// Wrapping the reader hides its length, as a chunked upload would.
+		{"length not declared", struct{ io.Reader }{strings.NewReader(oversized)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, reserveTarget, tt.body))
+
+			if rec.Code != http.StatusRequestEntityTooLarge {
+				t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusRequestEntityTooLarge, rec.Body)
+			}
+			if got := decodeError(t, rec).Error.Code; got != exception.ErrPayloadTooLarge.Code {
+				t.Fatalf("code = %q, want %q", got, exception.ErrPayloadTooLarge.Code)
 			}
 		})
 	}

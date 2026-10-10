@@ -16,6 +16,7 @@ import (
 // code gets. Every error defined in the exception package needs an entry.
 var statusByCode = map[string]int{
 	exception.ErrInvalidRequest.Code:      http.StatusBadRequest,
+	exception.ErrPayloadTooLarge.Code:     http.StatusRequestEntityTooLarge,
 	exception.ErrItemNotFound.Code:        http.StatusNotFound,
 	exception.ErrInsufficientStock.Code:   http.StatusConflict,
 	exception.ErrReservationNotFound.Code: http.StatusNotFound,
