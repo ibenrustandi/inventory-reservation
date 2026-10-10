@@ -70,7 +70,11 @@ CREATE TABLE inv_reservation (
 );
 CREATE INDEX inv_reservation_pending_expiry_idx
   ON inv_reservation (reservation_expires_date) WHERE reservation_status = 'PENDING';
+CREATE INDEX inv_reservation_item_pending_expiry_idx
+  ON inv_reservation (item_id, reservation_expires_date) WHERE reservation_status = 'PENDING';
 ```
+
+The first index serves the sweeper, which releases due reservations across all items; the second serves the release for one item (§8 layer 2).
 
 Mapping to the API: `item_stock` → `total_stock`, `item_stock_reserved` → `reserved_stock`, `reservation_expires_date` → `expires_at`, `reservation_confirmed_date` → `confirmed_at`. The `_date` columns hold a full timestamp with time zone, not a calendar date.
 
@@ -116,6 +120,7 @@ Common rules (**Decision**):
 - `code` is stable and machine-readable; `message` is for people; `details` is optional and depends on the code.
 - `400 INVALID_REQUEST` carries `details.fields`, a list of `{ "field", "reason" }`.
 - `500 INTERNAL_ERROR` never exposes internal details.
+- A request that cannot finish within 10 seconds, for example because the database is overloaded, returns `503 SERVICE_UNAVAILABLE` with a `Retry-After` header. It is not reported as `500`.
 - An unknown route returns `404 NOT_FOUND`; a known route called with the wrong method returns `405 METHOD_NOT_ALLOWED`.
 
 ### 7.1 Reserve stock — `POST /api/v1/inventory/reserve`
@@ -227,6 +232,7 @@ Known limit: if the sweeper is releasing a due reservation at the same instant, 
 | OP-2 | PostgreSQL is the only data store, in the application and in the tests that exercise storage. | §2: "in-memory databases, SQLite, or mock data stores are strictly disallowed". |
 | OP-3 | On `SIGINT` or `SIGTERM` the server stops accepting requests, lets in-flight requests finish within 15 seconds, stops the sweeper after its current pass, then closes the database pool last. | §4 (4): "The Gin server must cleanly intercept system signals and shut down gracefully without corrupting state or dropping active database connections." |
 | OP-4 | `go test -race -v ./...` passes with no skipped tests on a machine that has Go and Docker. | §4 (5): "Include unit and stress tests. The Go codebase will be validated using standard race detection: go test -race -v ./..." |
+| OP-5 | Each instance opens at most a configured number of PostgreSQL connections (default 20). The HTTP server limits how long a connection may take to send a request, receive a response, or stay idle. | §1: "a resilient, high-concurrency backend service". |
 
 ## 11. Written deliverables
 
@@ -294,5 +300,8 @@ Each criterion names the automated test that proves it. The frontend requirement
 |---|---|---|
 | AC-OP-01 | Given a request in flight, when shutdown is triggered, then the request completes with its normal response, the sweeper stops, and the server exits without error. | `TestShutdown_Graceful` |
 | AC-OP-02 | Given a cancelled context, when the sweeper loop is running, then it returns promptly. | `TestSweeperRun_StopsOnCancel` |
+| AC-OP-03 | Given a request that runs out of time or is cancelled, when the error is reported, then `503 SERVICE_UNAVAILABLE` with `Retry-After`, and no internal detail in the body. | `TestStock_MapsUsecaseResult` |
+| AC-OP-04 | Given a fresh database, when migrations run, then both expiry indexes exist. | `TestMigrate_CreatesExpiryIndexes` |
+| AC-OP-05 | Given the environment, when settings are loaded, then defaults apply, every setting is read, and an invalid value is rejected naming the variable. | `TestConfigLoad` |
 
 Tests never use a fixed sleep. A reservation is made due by moving its `reservation_expires_date` into the past in SQL.
