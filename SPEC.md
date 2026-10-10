@@ -33,7 +33,7 @@ Out of scope (**Decision**): authentication, payments, multi-item orders, stock 
 | D-5 | `quantity` is a JSON integer from 1 to 1000. `user_id`, `item_id` and `reservation_id` match `^[A-Za-z0-9_-]{1,64}$`. | §2 (1): "invalid input parameters". |
 | D-6 | A user may hold several reservations at once; there is no per-user limit. | Not addressed in the Brief. |
 | D-7 | `user_id` is trusted as sent; there is no authentication. | Not addressed in the Brief. |
-| D-8 | The reservation lifetime (default 5 minutes), the sweep interval (default 1 second) and the shutdown timeout (default 15 seconds) are configuration values, so tests do not wait. | §4 (5): "Include unit and stress tests." |
+| D-8 | The reservation lifetime (default 5 minutes), the sweep interval (default 1 second), the request timeout (default 10 seconds) and the shutdown timeout (default 15 seconds) are configuration values, so tests do not wait. The request timeout must be below the shutdown timeout. | §4 (5): "Include unit and stress tests." |
 
 ## 4. Reservation lifecycle
 
@@ -119,8 +119,9 @@ Common rules (**Decision**):
 
 - `code` is stable and machine-readable; `message` is for people; `details` is optional and depends on the code.
 - `400 INVALID_REQUEST` carries `details.fields`, a list of `{ "field", "reason" }`.
+- A request body must be one JSON object and nothing else; data after it is `400 INVALID_REQUEST`. A body over 64 KB is `413 PAYLOAD_TOO_LARGE`.
 - `500 INTERNAL_ERROR` never exposes internal details.
-- A request that cannot finish within 10 seconds, for example because the database is overloaded, returns `503 SERVICE_UNAVAILABLE` with a `Retry-After` header. It is not reported as `500`.
+- A request that cannot finish within the request timeout (D-8), for example because the database is overloaded, returns `503 SERVICE_UNAVAILABLE` with a `Retry-After` header. It is not reported as `500`.
 - An unknown route returns `404 NOT_FOUND`; a known route called with the wrong method returns `405 METHOD_NOT_ALLOWED`.
 
 ### 7.1 Reserve stock — `POST /api/v1/inventory/reserve`
@@ -253,7 +254,8 @@ Each criterion names the automated test that proves it. The frontend requirement
 | AC-RES-01 | Given stock 100 and none reserved, when a user reserves 2, then `201` with a `res_` ID and `expires_at` 5 minutes ahead, and `reserved_stock` is 2. | `TestReserve_Success` |
 | AC-RES-02 | Given available stock 1, when a user reserves 2, then `409 INSUFFICIENT_STOCK` with `available_stock` 1, and nothing changes. | `TestReserve_InsufficientStock` |
 | AC-RES-03 | When the item does not exist, then `404 ITEM_NOT_FOUND`. | `TestReserve_ItemNotFound` |
-| AC-RES-04 | When the body is malformed, a field is missing, or `quantity` is 0, negative, fractional, a string, or above 1000, then `400 INVALID_REQUEST` naming the field. | `TestReserve_InvalidRequest` |
+| AC-RES-04 | When the body is malformed, is followed by more data, a field is missing, or `quantity` is 0, negative, fractional, a string, or above 1000, then `400 INVALID_REQUEST` naming the field. | `TestReserve_InvalidRequest` |
+| AC-RES-05 | When the body is over 64 KB, whether or not its length is declared, then `413 PAYLOAD_TOO_LARGE` and the database is not reached. | `TestReserve_RejectsOversizedBody` |
 
 ### Confirm
 
@@ -300,8 +302,8 @@ Each criterion names the automated test that proves it. The frontend requirement
 |---|---|---|
 | AC-OP-01 | Given a request in flight, when shutdown is triggered, then the request completes with its normal response, the sweeper stops, and the server exits without error. | `TestShutdown_Graceful` |
 | AC-OP-02 | Given a cancelled context, when the sweeper loop is running, then it returns promptly. | `TestSweeperRun_StopsOnCancel` |
-| AC-OP-03 | Given a request that runs out of time or is cancelled, when the error is reported, then `503 SERVICE_UNAVAILABLE` with `Retry-After`, and no internal detail in the body. | `TestStock_MapsUsecaseResult` |
+| AC-OP-03 | Given an item row locked by another transaction, when a reserve runs into the request timeout, then `503 SERVICE_UNAVAILABLE` with `Retry-After`, nothing is reserved, and the item works again once the lock is released. | `TestReserve_TimesOutWhileItemIsLocked` |
 | AC-OP-04 | Given a fresh database, when migrations run, then both expiry indexes exist. | `TestMigrate_CreatesExpiryIndexes` |
 | AC-OP-05 | Given the environment, when settings are loaded, then defaults apply, every setting is read, and an invalid value is rejected naming the variable. | `TestConfigLoad` |
 
-Tests never use a fixed sleep. A reservation is made due by moving its `reservation_expires_date` into the past in SQL.
+No test sleeps to wait for an outcome. A reservation is made due by moving its `reservation_expires_date` into the past in SQL, and a timeout is tested with a short request timeout against a held row lock.
