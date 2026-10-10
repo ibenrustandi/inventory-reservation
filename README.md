@@ -178,7 +178,7 @@ Health: `GET /health` (process is up) and `GET /ready` (database answers).
 backend/
   cmd/web/                  entry point, dependency wiring, graceful shutdown
   config/                   environment settings
-  db/migrations/            SQL migrations, one per table, applied on start-up
+  db/migrations/            SQL migrations, applied in order on start-up
   internal/
     delivery/http/          handler, middleware, route
     usecase/                business logic

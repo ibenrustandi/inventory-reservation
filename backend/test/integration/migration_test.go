@@ -54,6 +54,27 @@ func TestMigrate_UsesPrefixedBookkeepingTable(t *testing.T) {
 	}
 }
 
+func TestMigrate_CreatesExpiryIndexes(t *testing.T) {
+	ctx := context.Background()
+
+	for _, index := range []string{
+		"inv_reservation_pending_expiry_idx",
+		"inv_reservation_item_pending_expiry_idx",
+	} {
+		var exists bool
+		err := db.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = 'inv_reservation' AND indexname = $1)`,
+			index,
+		).Scan(&exists)
+		if err != nil {
+			t.Fatalf("look up index %s: %v", index, err)
+		}
+		if !exists {
+			t.Errorf("index %s does not exist", index)
+		}
+	}
+}
+
 func TestSchema_RejectsInvalidRows(t *testing.T) {
 	ctx := context.Background()
 
