@@ -16,7 +16,7 @@ Behaviour, API contract and acceptance criteria are in [SPEC.md](SPEC.md). This 
 
 **Time.** Every deadline comparison uses PostgreSQL `now()`, never the Go clock, so instance clock skew cannot matter.
 
-**Gin.** Routes live under `/api/v1/inventory` in one file. Middleware order is request ID → logger → error handler → recovery → timeout. Handlers only parse, call a use case and write; every error leaves through one envelope, and one map assigns HTTP status to error codes. Layers: `delivery → usecase → domain`, `repository → domain`.
+**Gin.** Routes live under `/api/v1/inventory` in one file. Middleware order is request ID → logger → error handler → recovery → timeout. Handlers only parse, call a use case and write; every error leaves through one envelope, and one map assigns HTTP status to error codes. Dependencies point one way, `delivery → usecase → repository`; `domain` and `exception` sit underneath and import nothing from the project.
 
 **Evidence.** Stress tests under `-race` run 1000 buyers against 100 units, confirms racing the sweeper, and mixed churn, then assert five invariants from SQL. Deliberately breaking the reserve guard, the confirm deadline or the release filter makes them fail.
 
@@ -28,7 +28,7 @@ Behaviour, API contract and acceptance criteria are in [SPEC.md](SPEC.md). This 
 
 | Failure | Change |
 |---|---|
-| 10 pools exceed `max_connections` | PgBouncer or RDS Proxy; size pools per instance |
+| 10 pools exceed `max_connections` (each is capped by `DB_MAX_CONNS`, default 20) | PgBouncer or RDS Proxy; size pools per instance |
 | One item row serialises every reserve for that item, so throughput is capped by a single row lock | Atomic decrement in Redis as an admission gate with PostgreSQL as system of record; or stock split across bucket rows; or a queue with one consumer per item |
 | Stock polling from every browser hits the primary | Read replica or a 1-second cache; push (SSE) instead of polling |
 | A client retry after a lost response creates a second reservation | `Idempotency-Key` on reserve, stored with the reservation |
@@ -43,7 +43,7 @@ Target shape on AWS: stateless containers on ECS or EKS behind an ALB, RDS Postg
 
 **Known limits.** The stock endpoint can show held units up to one sweep interval after they expire; buyers are unaffected because reserve releases them itself. A reserve can lose a millisecond race with the sweeper and get one early "sold out". A device clock that is wrong shows a wrong countdown, but the server still decides what can be confirmed.
 
-**Layout over idiom.** The backend follows a widely used Go clean-architecture template (`delivery`, `usecase`, `repository`, `domain`, tests under `test/`, one migration per table) for recognisability and consistency. I know this costs a little Go idiom: tests are not beside the code, interfaces are declared next to their implementations, and names such as `exception` and `Impl` come from other ecosystems. I departed from the template once: errors carry no HTTP status, so the inner layers import neither Gin nor `net/http`.
+**Layout over idiom.** The backend follows a widely used Go clean-architecture template (`delivery`, `usecase`, `repository`, `domain`, tests under `test/`) for recognisability and consistency. I know this costs a little Go idiom: tests are not beside the code, interfaces are declared next to their implementations, and names such as `exception` and `Impl` come from other ecosystems. I departed from the template once: errors carry no HTTP status, so the inner layers import neither Gin nor `net/http`.
 
 **AI use.** I built this with Claude Code, Anthropic's coding agent, which wrote the specification, code and tests under my direction. The decisions were mine, among them the schema naming, the layered layout, making inline release on reserve mandatory, and TanStack Query on the frontend.
 
